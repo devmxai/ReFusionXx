@@ -526,21 +526,23 @@ Add `get_spatial_scene_snapshot`.
 
 ## 5. Target Architecture
 
-### 5.1 CanvasProfile
+### 5.1 CompositionProfile And ViewportProjectionState
 
-Create a canonical profile object:
+Canvas truth is split into two objects.
+
+`CompositionProfile` is creative/export truth:
 
 ```text
-CanvasProfile
+CompositionProfile
   projectId
   compositionId
   sceneId
   width
   height
-  fps
+  fpsNumerator
+  fpsDenominator
   durationMs
-  currentTimeMs
-  currentFrame
+  durationInFrames
   pixelAspectRatio
   aspectPreset
   canonicalCoordinateSpace
@@ -550,13 +552,36 @@ CanvasProfile
   boundsTopLeftAbsolute
   safeAreas
   guides
-  roundedPreviewClipRadius
-  viewportScale
-  viewportOffset
+  compositionRevision
+  graphRevision
 ```
 
-This object must be derived from the active local composition truth, not from
-MCP guesses.
+`ViewportProjectionState` is editor/display truth:
+
+```text
+ViewportProjectionState
+  compositionId
+  devicePixelRatio
+  stageRect
+  canvasRect
+  viewportScale
+  viewportOffset
+  editorPreviewClipRadius
+  chromeInsets
+  screenshotScale
+```
+
+Rules:
+
+- `CompositionProfile` is used by graph, timeline, frame evaluator, export, and
+  MCP spatial validation.
+- `ViewportProjectionState` is used by pointer input, editor handles,
+  screenshots, visual proof, and preview projection.
+- `ViewportProjectionState` must never become creative graph truth.
+- Rounded preview corners are editor chrome by default. Export/composition
+  clipping is rectangular unless the user explicitly authors a rounded mask.
+- Both objects must be derived from the active local composition and current
+  preview state, not from MCP guesses.
 
 ### 5.2 CanvasCoordinateMapper
 
@@ -679,6 +704,329 @@ repair hints
 
 No write is accepted when validation fails.
 
+### 5.7 Formal Versioned Contracts
+
+The writer agent must not invent payload shapes. These contracts are mandatory
+versioned DTOs.
+
+#### 5.7.1 CoordinateInputV1
+
+```json
+{
+  "schema": "refusion.canvas.coordinateInput.v1",
+  "space": "centerOrigin|topLeftAbsolute|normalizedCanvas|anchorZone|screenViewport",
+  "unit": "compositionPx|normalized|viewportPx",
+  "x": 0,
+  "y": 0,
+  "centerX": 540,
+  "centerY": 960,
+  "normalizedX": 0.5,
+  "normalizedY": 0.5,
+  "anchor": "center",
+  "zone": "titleSafe",
+  "basis": {
+    "compositionId": "uuid",
+    "compositionRevision": 12,
+    "snapshotId": "uuid",
+    "frame": 0
+  }
+}
+```
+
+Rules:
+
+- `space` is required for numeric writes.
+- `screenViewport` is accepted only from live pointer/handle readback with a
+  contemporaneous `ViewportProjectionState`.
+- MCP, scripts, templates, and imports cannot write `screenViewport`.
+- Conflicting fields fail with `CONFLICTING_COORDINATE_FIELDS`.
+- Missing space for raw `x/y` fails with `AMBIGUOUS_COORDINATE_SPACE`.
+
+#### 5.7.2 CanvasDiagnosticV1
+
+```json
+{
+  "schema": "refusion.canvas.diagnostic.v1",
+  "code": "AMBIGUOUS_COORDINATE_SPACE",
+  "severity": "error|warning|info",
+  "message": "Raw x/y require coordinateSpace.",
+  "repairHint": "Use anchor=center or centerX/centerY.",
+  "fieldPath": "payload.props.x",
+  "blocking": true
+}
+```
+
+#### 5.7.3 SpatialSceneSnapshotV1
+
+```json
+{
+  "schema": "refusion.canvas.spatialSceneSnapshot.v1",
+  "snapshotId": "uuid",
+  "composition": "CompositionProfile",
+  "viewport": "ViewportProjectionState",
+  "frame": "FrameEvaluationRequest",
+  "selection": {
+    "layerIds": [],
+    "elementIds": [],
+    "timelineClipIds": []
+  },
+  "elements": [],
+  "diagnostics": []
+}
+```
+
+#### 5.7.4 RendererProofV1
+
+```json
+{
+  "schema": "refusion.canvas.rendererProof.v1",
+  "commandId": "uuid",
+  "compositionId": "uuid",
+  "frameEvaluationId": "uuid",
+  "visualProgramHash": "sha256",
+  "previewRendererVersion": "string",
+  "exportRendererVersion": "string",
+  "expectedBounds": {},
+  "evaluatedBounds": {},
+  "renderedBounds": {},
+  "insideCanvas": true,
+  "timelineClipVisible": true,
+  "visualBoundsVerified": true,
+  "rendererApplied": true,
+  "pixelDiff": null,
+  "diffImagePath": null,
+  "diagnostics": []
+}
+```
+
+Self-asserted booleans are invalid. `rendererApplied` and
+`visualBoundsVerified` must be produced from evaluated/measured bounds, not from
+`didApply` or database success.
+
+### 5.8 Transform Math Contract
+
+All visible nodes use the same transform order:
+
+```text
+1. local content bounds
+2. apply anchor/pivot offset
+3. apply scale
+4. apply rotation around pivot
+5. apply translation in canonical center-origin composition pixels
+6. resolve parent/world transform if nested
+7. compute transformed corners
+8. compute axis-aligned bounds
+9. apply mask/crop
+10. inflate visual bounds for effects such as shadow/glow/blur when applicable
+11. intersect authored pixels with rectangular composition clip unless allowOverflow=true
+12. project to viewport for preview/handles/proof
+```
+
+Node position semantics:
+
+- Text position is the node anchor point, not baseline or top-left.
+- Shape position is the shape anchor point.
+- Image/video position is the media anchor point after fit/crop.
+- Background/solid with `backgroundRole=canvas` ignores authored position and
+  resolves to full-canvas bounds.
+- Baseline, glyph bounds, and line boxes are text layout data, not primary node
+  position.
+
+### 5.9 Frame And Time Domain Contract
+
+Geometry/proof must use frame identity, not bare milliseconds.
+
+```text
+FrameEvaluationRequest
+  compositionId
+  fpsNumerator
+  fpsDenominator
+  durationInFrames
+  rootFrame
+  rootTimeMs
+  sceneFrame
+  sceneTimeMs
+  clipLocalFrame
+  clipLocalTimeMs
+  elementLocalFrame
+  effectLocalFrame
+  transitionProgress
+  roundingMode = floor|round|ceil|exactFrame
+```
+
+Rules:
+
+- Preview, scrub, proof, and export use the same `FrameEvaluationRequest`.
+- Bare `timeMs` is allowed only for UI display and compatibility adapters.
+- Proof/export requests must include frame identity and rounding mode.
+- Any MCP command that references time must declare the time domain.
+
+### 5.10 Stale Snapshot Guard
+
+Every spatial update/move/effect/motion command must carry a basis:
+
+```json
+{
+  "basisSnapshotId": "uuid",
+  "basisCompositionRevision": 12,
+  "basisGraphRevision": 41,
+  "basisFrame": 30,
+  "targetIdentity": {
+    "layerId": "...",
+    "elementId": "...",
+    "timelineClipId": "..."
+  },
+  "boundsBefore": {}
+}
+```
+
+If the current composition revision, graph revision, target identity, or
+`boundsBefore` no longer matches, reject with:
+
+```text
+STALE_SPATIAL_SNAPSHOT
+```
+
+Repair hint:
+
+```text
+Call refusion.get_spatial_scene_snapshot again, then retry.
+```
+
+### 5.11 TextLayoutSnapshot Contract
+
+Text geometry must include layout truth:
+
+```text
+TextLayoutSnapshot
+  text
+  fontFamily
+  fontFingerprint
+  fontLoaded
+  fontSize
+  fontWeight
+  lineHeight
+  letterSpacing
+  textAlign
+  maxWidth
+  baseline
+  ascent
+  descent
+  lineBoxes
+  glyphBounds
+  measuredBounds
+  paintedBounds
+  overflow
+```
+
+Rules:
+
+- Text proof cannot pass while `fontLoaded=false`.
+- Measurement properties and render properties must match.
+- Multiline, wrapping, baseline, and alignment must be represented in geometry.
+- Text visual bounds use painted bounds; editing frame bounds may be larger but
+  must be named separately.
+
+### 5.12 Registry And Capability Conformance Dependency
+
+Canvas truth must consume `ProfessionalCreativeLibraryRegistry` conformance for
+every component, effect, template, motion recipe, shape preset, and future node.
+
+No registry item may be considered canvas-safe unless it declares:
+
+```text
+previewRendererSupport
+exportRendererSupport
+frameEvaluatorSupport
+geometrySupport
+proofSupport
+editableBoundsSupport
+supportedCoordinateSpaces
+```
+
+If any support field is missing, commands using that item fail or become
+explicit `prerenderOnly`, never silent metadata-only success.
+
+### 5.13 Local/Cloud MCP Contract Parity
+
+Both MCP stacks must obey the same canvas contract:
+
+- local Dart toolkit,
+- Supabase Edge Function / cloud MCP.
+
+Required conformance:
+
+```text
+same accepted coordinate inputs
+same rejected ambiguous inputs
+same diagnostic codes
+same normalized canonical payload
+same snapshot schema
+same proof schema
+same target resolution behavior
+```
+
+Every change to canvas coordinate semantics requires tests in both stacks.
+
+### 5.14 Code Ownership And Legacy Cleanup Targets
+
+Canvas truth ownership:
+
+```text
+CompositionProfile: domain canvas service
+ViewportProjectionState: preview-stage/editor presentation service
+CanvasCoordinateMapper: domain service, used by all writers/readers
+CanvasViewportProjector: presentation service, used by overlays/handles/proof
+CanvasGeometrySnapshot: frame evaluator output
+SpatialSceneSnapshot: MCP/local evaluated projection
+RendererProof: proof evaluator from measured/evaluated bounds
+```
+
+Legacy cleanup must explicitly cover these current paths:
+
+```text
+lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart
+lib/features/editor/presentation/services/mcp_editor_layer_snapshot_builder.dart
+lib/features/editor/presentation/widgets/preview_stage.dart
+lib/features/editor/presentation/widgets/motion_text_preview_overlay.dart
+lib/features/editor/presentation/widgets/motion_shape_preview_overlay.dart
+lib/features/editor/presentation/widgets/motion_image_preview_overlay.dart
+lib/features/editor/presentation/widgets/unified_canvas_transform_overlay.dart
+lib/features/editor/domain/mcp/refusion_mcp_mvp_toolkit.dart
+lib/features/editor/domain/mcp/refusion_mcp_tool_registry.dart
+supabase/functions/mcp/index.ts
+```
+
+Approved compatibility adapters:
+
+```text
+LegacyMcpCoordinateAdapter
+LegacySnapshotCoordinateAdapter
+LegacyLayerPayloadAdapter
+```
+
+Forbidden outside approved adapters:
+
+```text
+manual half-canvas subtraction
+manual viewport center addition
+ad hoc coordinateSpace inference
+publishing absolute center as x/y
+reading DB payload geometry as proof
+returning full-canvas placeholder geometry for arbitrary elements
+```
+
+Required cleanup checks:
+
+```bash
+rg "_mcpCanonicalCoordinateFromRemoteValue|_mcpRemoteCoordinateSpace|canvasSize\\.width / 2|canvasSize\\.height / 2" lib supabase/functions/mcp/index.ts
+rg "computeLayerGeometry|full-canvas placeholder|appliedSuccessfully.*rendererApplied" lib supabase/functions/mcp/index.ts
+rg "constraints.maxWidth|constraints.maxHeight" lib/features/editor/presentation/widgets/*preview_overlay.dart
+```
+
+Any match must either be removed, routed through the official mapper/projector,
+or documented as an approved compatibility adapter.
+
 ## 6. Implementation Phases
 
 ### PCTE-00: Pre-Build Canvas Audit Gate
@@ -699,23 +1047,28 @@ Exit criteria:
 - Current branch/commit recorded.
 - Dirty worktree assessed.
 
-### PCTE-01: CanvasProfile And Coordinate Contract
+### PCTE-01: CompositionProfile, ViewportProjectionState, And Coordinate Contract
 
 Build:
 
-- `CanvasProfile`
+- `CompositionProfile`
+- `ViewportProjectionState`
 - `CanvasCoordinateSpace`
 - `CanvasCoordinateMapper`
 - `CanvasSpatialIntent`
+- `FrameEvaluationRequest`
 - typed diagnostics:
   - `AMBIGUOUS_COORDINATE_SPACE`
   - `UNSUPPORTED_COORDINATE_SPACE`
   - `OUT_OF_CANVAS_BOUNDS`
   - `INVALID_CANVAS_PROFILE`
+  - `STALE_SPATIAL_SNAPSHOT`
 
 Rules:
 
 - Internal canonical storage is center-origin.
+- Composition truth and viewport/editor projection are separate objects.
+- `screenViewport` is accepted only for pointer/readback flows.
 - New writes must be explicit.
 - Legacy inference is isolated and measurable.
 
@@ -751,6 +1104,7 @@ Build:
   - `set_element_transform`
   - `apply_motion_patch`
   - future script/template imports
+- local/cloud MCP conformance tests for the same coordinate payloads.
 
 Rules:
 
@@ -759,6 +1113,9 @@ Rules:
   adapters.
 - Absolute values use `centerX/centerY` or `coordinateSpace=topLeftAbsolute`.
 - Semantic placement uses `anchor/zone`.
+- Every spatial write includes `basisSnapshotId` or runs through
+  `validate_spatial_plan` immediately before apply.
+- Stale basis data fails with `STALE_SPATIAL_SNAPSHOT`.
 
 Tests:
 
@@ -782,6 +1139,8 @@ Device check:
 Build:
 
 - snapshot payloads must expose canonical and absolute fields separately.
+- existing `sync_editor_layers` and `get_layers` consumers must either migrate
+  to the new shape or be wrapped by `LegacySnapshotCoordinateAdapter`.
 
 Required snapshot shape:
 
@@ -812,6 +1171,8 @@ Rules:
 - Never publish absolute center as canonical `x/y`.
 - Never publish screen pixels as composition pixels.
 - Every geometry field declares its coordinate space.
+- Every snapshot includes `snapshotId`, `compositionRevision`, `graphRevision`,
+  and `frame`.
 
 Tests:
 
@@ -842,6 +1203,12 @@ Build:
   - video overlay,
   - transform handles,
   - proof bounds.
+- Explicit migration of:
+  - `motion_text_preview_overlay.dart`
+  - `motion_shape_preview_overlay.dart`
+  - `motion_image_preview_overlay.dart`
+  - `unified_canvas_transform_overlay.dart`
+  - `_CleanPreviewCanvas` call sites.
 
 Rules:
 
@@ -872,15 +1239,20 @@ Device check:
 Build:
 
 - `CanvasGeometrySnapshot` from frame evaluator truth.
-- `get_element_geometry(timeMs)` reads evaluated frame state, not only static DB
-  payload.
+- `get_element_geometry(FrameEvaluationRequest)` reads evaluated frame state,
+  not only static DB payload.
+- `TextLayoutSnapshot` for text nodes.
 
 Rules:
 
-- Geometry includes motion channels at `timeMs`.
+- Geometry includes motion channels at the requested `FrameEvaluationRequest`.
 - Geometry includes transforms, scale, rotation, masks, effects that inflate
   bounds, and canvas clipping.
 - Geometry includes visible/timeline status.
+- Geometry merges image fit, video transform, text layout, masks, blur/glow
+  inflation, rotation corners, and timeline visibility.
+- Cloud/local geometry APIs cannot return full-canvas placeholders for arbitrary
+  elements.
 
 Tests:
 
@@ -1004,6 +1376,10 @@ Rules:
 - revision increment is not proof.
 - metadata write is not proof.
 - `appApplied=true` requires local frame/renderer proof.
+- Self-asserted `rendererApplied=true` is invalid without measured/evaluated
+  bounds.
+- Proof must name sampled frame(s), renderer versions, visual program hash, and
+  diff artifact paths when parity is evaluated.
 
 Tests:
 
@@ -1110,6 +1486,60 @@ renderer proof JSON
 logcat/app log excerpt with no coordinate/proof failure
 ```
 
+### 7.5.1 Preset And Transform Coverage
+
+The E2E suite must run across:
+
+```text
+Story 1080x1920
+Landscape 1920x1080
+Square 1080x1080
+at least one non-1080 preset
+```
+
+For each preset, verify:
+
+```text
+center placement
+top-left/top-right/bottom-center semantic placement
+manual move then agent readback
+agent move then manual readback
+scaled text
+rotated text
+scaled/rotated shape
+image fit/contain/cover
+video fit/contain/cover
+zoom/pan projection alignment
+fractional coordinate round trip
+high-DPI screenshot proof when available
+```
+
+### 7.5.2 Device Artifact Mechanics
+
+All device artifacts go under:
+
+```text
+.tmp_diagnostics/pcte/<phase>/<commit>/
+```
+
+Required commands or equivalent:
+
+```text
+adb devices
+adb shell monkey -p com.refusion.app 1
+adb exec-out screencap -p > .tmp_diagnostics/pcte/<phase>/<commit>/screen.png
+adb logcat -d > .tmp_diagnostics/pcte/<phase>/<commit>/logcat.txt
+```
+
+Pixel measurements must be derived from one of:
+
+- renderer proof bounds,
+- spatial snapshot bounds,
+- app diagnostic bounds,
+- screenshot measurement script documented in the closure note.
+
+Manual visual inspection alone is not sufficient for phase closure.
+
 ### 7.6 Per-Phase Device Closure Matrix
 
 Each phase must complete the matching wireless-device closure scenario:
@@ -1200,7 +1630,13 @@ Do not:
 - let snapshots publish absolute pixels as canonical coordinates;
 - let `get_element_geometry` read only database payloads;
 - let renderer proof pass without evaluated visual bounds;
+- let self-asserted proof booleans pass without measured/evaluated bounds;
 - let UI and MCP use different canvas placement logic;
+- let local Dart MCP and cloud MCP diverge in coordinate semantics;
+- accept spatial writes based on stale snapshots;
+- treat rounded editor chrome as exported composition shape unless explicitly
+  authored;
+- use screen viewport coordinates in MCP/script/template writes;
 - accept raw spatial commands that the system cannot prove;
 - create a new canvas engine that bypasses the runtime apply spine.
 
