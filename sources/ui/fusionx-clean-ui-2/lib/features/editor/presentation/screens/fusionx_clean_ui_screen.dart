@@ -109,6 +109,7 @@ import '../services/unified_timeline_panel_projection_adapter.dart';
 import '../services/unified_timeline_presentation_adapter.dart';
 import '../services/unified_timeline_presentation_flags.dart';
 import '../services/unified_timeline_legacy_compatibility_gate.dart';
+import '../services/universal_mcp_motion_property_resolver.dart';
 import '../services/universal_master_frame_evaluation_service.dart';
 import '../services/universal_motion_channel_collector.dart';
 import '../widgets/editor_tools_bar.dart';
@@ -912,6 +913,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _mcpUniversalRuntimeUpdatePlanner = UniversalLayerRuntimeUpdatePlanner();
   static const McpTextMotionTargetPlanner _mcpTextMotionTargetPlanner =
       McpTextMotionTargetPlanner();
+  static const UniversalMcpMotionPropertyResolver _mcpMotionPropertyResolver =
+      UniversalMcpMotionPropertyResolver();
   static const McpEffectCapabilityGuard _mcpEffectCapabilityGuard =
       McpEffectCapabilityGuard();
   static const McpEffectPayloadLowering _mcpEffectPayloadLowering =
@@ -5770,35 +5773,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   MotionPropertyDefinition? _mcpDefinitionForPropertyId(String propertyId) {
-    final normalized = propertyId.trim().toLowerCase();
-    switch (normalized) {
-      case 'transform.position.x':
-      case 'transform.translate.x':
-      case 'transform.translation.x':
-      case 'position.x':
-        return MotionPropertyCatalog.positionX;
-      case 'transform.position.y':
-      case 'transform.translate.y':
-      case 'transform.translation.y':
-      case 'position.y':
-        return MotionPropertyCatalog.positionY;
-      case 'transform.scale.x':
-      case 'scale.x':
-        return MotionPropertyCatalog.scaleX;
-      case 'transform.scale.y':
-      case 'scale.y':
-        return MotionPropertyCatalog.scaleY;
-      case 'transform.rotation.degrees':
-      case 'transform.rotation':
-      case 'rotation':
-      case 'rotation.degrees':
-        return MotionPropertyCatalog.rotationDegrees;
-      case 'visual.opacity':
-      case 'visual.opacity.alpha':
-      case 'opacity':
-        return MotionPropertyCatalog.opacity;
-    }
-    return null;
+    return _mcpMotionPropertyResolver.resolve(propertyId);
   }
 
   List<MotionKeyframeModel> _mcpKeyframesFromRemoteChannel({

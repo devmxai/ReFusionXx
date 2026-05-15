@@ -32,6 +32,8 @@ b2f97087 checkpoint: finalize workspace identity runtime adoption core
 e8d612ab checkpoint: enforce mutating transaction scope on active workspace
 8db64bba checkpoint: require target hints for mutating transactions
 d01bc020 checkpoint: enforce target hints at json-rpc boundary
+995f2739 checkpoint: update plan hash for json-rpc target gate
+52781d75 checkpoint: normalize local mcp target resolution before apply
 ```
 
 ### What Is Closed
@@ -60,6 +62,7 @@ Agent control plane now normalizes canonical transaction fields into runtime com
 Mutating MCP tools now synthesize canonical transactions when missing and fail closed unless session identity is real (non-placeholder) and transaction scope matches active workspace project/composition.
 Canonical mutating transactions now fail validation when update/effect/motion/delete intents are submitted without resolvable target hints.
 JSON-RPC `tools/call` now enforces the same target-hint contract for canonical update/effect/motion/delete transactions before dispatching to runtime handlers.
+LocalMcpTransactionApi now normalizes update/effect/motion targets via alias resolution before apply and fails closed on missing/ambiguous targets (`TARGET_NOT_FOUND` / `AMBIGUOUS_TARGET` / `UNSAFE_FALLBACK_BLOCKED`).
 ```
 
 ### What Is Not Yet Closed
