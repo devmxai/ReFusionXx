@@ -1297,6 +1297,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   RefusionMcpCloudContextState _readMcpCloudContextState() {
+    final hasActiveLocalComposition = _hasStartedCompositionSession &&
+        _motionProject != null &&
+        _motionProject!.scenes.isNotEmpty;
+    if (!hasActiveLocalComposition) {
+      return RefusionMcpCloudContextState(
+        projectId: '',
+        compositionId: '',
+        timelineId: 'main',
+        playheadMs: refusionMcpPlayheadMs(_currentTime),
+        timelineRevision: _mcpAppliedRemoteRevision,
+        foreground: _mcpCloudIsForeground,
+        canvasWidth: null,
+        canvasHeight: null,
+        durationMs: null,
+        fps: null,
+        coordinateSystem: 'center-origin',
+        origin: 'center',
+      );
+    }
     final activeSceneId =
         _sceneScopeSession?.sourceSceneId ?? _rootMotionSceneId;
     final effectiveProject = _effectiveMotionProject;
@@ -1420,7 +1439,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _handleMcpCloudSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {
     if (!_isMcpSnapshotForActiveComposition(snapshot)) {
-      if (_adoptMcpCloudIdentityIfNeeded(snapshot)) {
+      if (_bootstrapMcpCompositionFromSnapshotIfNeeded(snapshot)) {
+        _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
+      } else if (_adoptMcpCloudIdentityIfNeeded(snapshot)) {
         _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
       } else {
         if (kDebugMode) {
@@ -1437,6 +1458,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _captureMcpSpatialDiagnostics(snapshot);
       _refreshMcpPendingCommandLedger(snapshot.pendingCommands);
       _failStaleMcpPendingCommandsIfNeeded(snapshot);
+      if (_bootstrapMcpCompositionFromSnapshotIfNeeded(snapshot)) {
+        _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
+      }
       if (!_hasStartedCompositionSession || _motionProject == null) {
         return;
       }
@@ -1532,6 +1556,113 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _lastAdoptedMcpCompositionId = remoteCompositionId;
     });
     return true;
+  }
+
+  bool _bootstrapMcpCompositionFromSnapshotIfNeeded(
+    RefusionMcpCloudBridgeSnapshot snapshot,
+  ) {
+    if (!snapshot.ok || _hasStartedCompositionSession) {
+      return false;
+    }
+    if (snapshot.remoteLayers.isEmpty &&
+        snapshot.pendingCommands.isEmpty &&
+        snapshot.remoteMotionChannels.isEmpty) {
+      return false;
+    }
+    final remoteProjectId = snapshot.projectId?.trim();
+    final remoteCompositionId = snapshot.compositionId?.trim();
+    if (remoteProjectId == null ||
+        remoteProjectId.isEmpty ||
+        remoteCompositionId == null ||
+        remoteCompositionId.isEmpty) {
+      return false;
+    }
+    final canvasSize = _canvasSizeForMcpSnapshot(snapshot) ??
+        MotionSize2D(
+          width: _motionProjectFormat.canvasSize.width,
+          height: _motionProjectFormat.canvasSize.height,
+        );
+    final fps = _firstRemoteInt(<Object?>[
+          snapshot.canvasMetadata['fps'],
+          _remoteMap(snapshot.canvasMetadata['canvas'])['fps'],
+        ]) ??
+        30;
+    final durationMs = _firstRemoteInt(<Object?>[
+          snapshot.canvasMetadata['durationMs'],
+          _remoteMap(snapshot.canvasMetadata['canvas'])['durationMs'],
+        ]) ??
+        math.max(1, _timelineDurationTime.inMilliseconds);
+    final duration = TimelineTime.fromMilliseconds(durationMs);
+    final project = MotionProjectModel(
+      id: remoteProjectId,
+      format: MotionProjectFormat(canvasSize: canvasSize),
+      frameRate: MotionFrameRate(numerator: fps, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: remoteCompositionId,
+          projectRange: TimelineTimeRange(
+            start: TimelineTime.zero,
+            endExclusive: duration,
+          ),
+          layers: const <MotionLayerModel>[],
+          name: 'MCP Composition',
+          metadata: const <String, String>{
+            'role': 'root-composition',
+            'source': 'mcp-bootstrap',
+          },
+        ),
+      ],
+      name: 'MCP Composition',
+      metadata: const <String, String>{
+        'source': 'mcp-bootstrap',
+      },
+    );
+    setState(() {
+      _activeCompositionProjectId = remoteProjectId;
+      _activeRootSceneId = remoteCompositionId;
+      _lockedWorkspaceAspectRatio = canvasSize.width / canvasSize.height;
+      _motionProject = project;
+      _hasStartedCompositionSession = true;
+      _sceneClips = const <CompositionSceneClipModel>[];
+      _sceneScopeSession = null;
+      _sceneLayerScopeLayerId = null;
+      _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
+      _universalMotionPropertyChannels = const <MotionPropertyChannelModel>[];
+      _appliedMcpSolidLayerSignatures.clear();
+      _appliedMcpTextLayerSignatures.clear();
+      _appliedMcpMotionChannelSignatures.clear();
+      _mcpRemoteLayerKindHintsById.clear();
+      _mcpRemoteMediaLayerClipIds.clear();
+      _tracks = const <TimelineTrackData>[];
+      _selectedClipId = null;
+      _selectedTransitionId = null;
+      _activeTab = EditorMediaTab.text;
+      _setCurrentTime(TimelineTime.zero);
+    });
+    _syncTimelineClockDuration();
+    return true;
+  }
+
+  MotionSize2D? _canvasSizeForMcpSnapshot(
+    RefusionMcpCloudBridgeSnapshot snapshot,
+  ) {
+    final canvas = _remoteMap(snapshot.canvasMetadata['canvas']);
+    final width = _firstRemoteDouble(<Object?>[
+      snapshot.canvasMetadata['width'],
+      snapshot.canvasMetadata['canvasWidth'],
+      canvas['width'],
+      canvas['canvasWidth'],
+    ]);
+    final height = _firstRemoteDouble(<Object?>[
+      snapshot.canvasMetadata['height'],
+      snapshot.canvasMetadata['canvasHeight'],
+      canvas['height'],
+      canvas['canvasHeight'],
+    ]);
+    if (width == null || height == null || width <= 0 || height <= 0) {
+      return null;
+    }
+    return MotionSize2D(width: width, height: height);
   }
 
   void _adoptMcpPairingIdentityIfNeeded(

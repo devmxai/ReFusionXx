@@ -174,6 +174,40 @@ void main() {
         expect(firstSnapshot.remoteLayers, isNotEmpty);
       },
     );
+
+    test(
+      'blank local context does not advertise an active composition',
+      () async {
+        final server = await _FakeMcpServer.start(
+          diagnosticsDelay: const Duration(milliseconds: 20),
+        );
+        addTearDown(server.close);
+
+        final snapshots = <RefusionMcpCloudBridgeSnapshot>[];
+        final bridge = RefusionMcpCloudBridge(
+          endpoint: server.endpoint,
+          deviceId: 'test-device',
+          contextReader: () => const RefusionMcpCloudContextState(
+            projectId: '',
+            compositionId: '',
+            playheadMs: 0,
+            timelineRevision: 1,
+            foreground: true,
+          ),
+          onSnapshot: snapshots.add,
+          interval: const Duration(seconds: 60),
+          connectTimeout: const Duration(seconds: 2),
+        );
+        addTearDown(bridge.stop);
+
+        await bridge.syncNow();
+
+        expect(server.callCount('get_layers'), 0);
+        expect(server.callCount('sync_editor_layers'), 0);
+        expect(snapshots, isNotEmpty);
+        expect(snapshots.first.remoteLayers, isEmpty);
+      },
+    );
   });
 }
 
