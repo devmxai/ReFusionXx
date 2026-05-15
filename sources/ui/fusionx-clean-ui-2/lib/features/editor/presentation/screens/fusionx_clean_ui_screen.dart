@@ -1454,6 +1454,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       final useRecoverySync = _shouldRunMcpRecoverySync(
         hasPendingCommands: hasPendingCommands,
         remoteRevision: snapshot.remoteRevision,
+        remoteLayers: remoteLayers,
       );
       final remoteLayersForApply = hasPendingCommands
           ? _filterRemoteLayersForPendingTargets(
@@ -1558,14 +1559,87 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _shouldRunMcpRecoverySync({
     required bool hasPendingCommands,
     required int? remoteRevision,
+    required List<Map<String, Object?>> remoteLayers,
   }) {
     if (hasPendingCommands) {
       return false;
+    }
+    if (_hasUnrepresentedMcpRemoteLayer(remoteLayers)) {
+      return true;
     }
     if (remoteRevision == null) {
       return false;
     }
     return remoteRevision > _mcpAppliedRemoteRevision;
+  }
+
+  bool _hasUnrepresentedMcpRemoteLayer(
+    List<Map<String, Object?>> remoteLayers,
+  ) {
+    for (final remoteLayer in remoteLayers) {
+      if (!_isMcpRemoteLayerRepresentedOrEditorEcho(remoteLayer)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _isMcpRemoteLayerRepresentedOrEditorEcho(
+    Map<String, Object?> remoteLayer,
+  ) {
+    final payload = _remotePayload(remoteLayer);
+    final updates = _remoteMap(payload['updates']);
+    final payloadPayload = _remoteMap(payload['payload']);
+    final updatesPayload = _remoteMap(updates['payload']);
+    final candidates = <String>{
+      for (final candidate in <String?>[
+        _remoteString(remoteLayer['id']),
+        _remoteString(payload['mcp.remoteLayerId']),
+        _remoteString(payload['remoteLayerId']),
+        _remoteString(payload['layerId']),
+        _remoteString(payload['targetLayerId']),
+        _remoteString(payload['localLayerId']),
+        _remoteString(payload['elementId']),
+        _remoteString(payload['clipId']),
+        _remoteString(updates['layerId']),
+        _remoteString(updates['targetLayerId']),
+        _remoteString(updates['localLayerId']),
+        _remoteString(payloadPayload['layerId']),
+        _remoteString(payloadPayload['targetLayerId']),
+        _remoteString(payloadPayload['localLayerId']),
+        _remoteString(updatesPayload['layerId']),
+        _remoteString(updatesPayload['targetLayerId']),
+        _remoteString(updatesPayload['localLayerId']),
+      ])
+        if (candidate != null && candidate.trim().isNotEmpty) candidate.trim(),
+    };
+    final aliasRaw = _firstRemoteString(<Object?>[
+      payload['mcp.remoteLayerAliases'],
+      payload['remoteLayerAliases'],
+      updates['mcp.remoteLayerAliases'],
+      updates['remoteLayerAliases'],
+    ]);
+    if (aliasRaw != null) {
+      candidates.addAll(
+        aliasRaw
+            .split(',')
+            .map((value) => value.trim())
+            .where((value) => value.isNotEmpty),
+      );
+    }
+    for (final candidate in candidates) {
+      if (_isMcpRemoteLayerRepresentedLocally(candidate) ||
+          _selectedClipContextForTracks(_timelineTruthTracks, candidate) !=
+              null) {
+        return true;
+      }
+    }
+    final syncSource = _firstRemoteString(<Object?>[
+          payload['syncSource'],
+          updates['syncSource'],
+        ]) ??
+        '';
+    return syncSource == 'editorTimeline' && candidates.isEmpty;
   }
 
   Set<String> _pendingCommandTargetLayerIds(
