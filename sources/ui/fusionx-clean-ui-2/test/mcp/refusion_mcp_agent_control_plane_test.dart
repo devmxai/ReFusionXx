@@ -184,8 +184,8 @@ void main() {
           clientName: 'codex',
           clientVersion: '1.0',
           transport: 'stdio',
-          activeProjectId: 'active',
-          activeCompositionId: 'comp_1',
+          activeProjectId: 'project_live_1',
+          activeCompositionId: 'composition_live_1',
           timelineRevision: 9,
           grantedCapabilities: <RefusionMcpCapability>{
             RefusionMcpCapability.motionWrite,
@@ -204,7 +204,7 @@ void main() {
         const RefusionMcpToolCallRequest(
           toolName: 'refusion.keyframe_edit',
           sessionId: 'session_1',
-          projectId: 'active',
+          projectId: 'project_live_1',
           commandId: 'cmd_commit_1',
           idempotencyKey: 'turn-3',
           mode: RefusionMcpCommandMode.commit,
@@ -223,7 +223,7 @@ void main() {
         const RefusionMcpToolCallRequest(
           toolName: 'refusion.list_recent_transactions',
           sessionId: 'session_1',
-          projectId: 'active',
+          projectId: 'project_live_1',
           commandId: 'cmd_list_1',
           idempotencyKey: 'turn-4',
           payload: <String, Object?>{},
@@ -252,8 +252,8 @@ void main() {
           clientName: 'codex',
           clientVersion: '1.0',
           transport: 'stdio',
-          activeProjectId: 'active',
-          activeCompositionId: 'comp_1',
+          activeProjectId: 'project_live_2',
+          activeCompositionId: 'composition_live_2',
           timelineRevision: 8,
           grantedCapabilities: <RefusionMcpCapability>{
             RefusionMcpCapability.timelineWrite,
@@ -270,7 +270,7 @@ void main() {
         const RefusionMcpToolCallRequest(
           toolName: 'refusion.delete_layer',
           sessionId: 'session_1',
-          projectId: 'active',
+          projectId: 'project_live_2',
           commandId: 'cmd_del_1',
           idempotencyKey: 'turn-5',
           mode: RefusionMcpCommandMode.commit,
@@ -462,6 +462,206 @@ void main() {
       expect(
         result.error?.message
             .contains('Canonical transaction validation failed'),
+        isTrue,
+      );
+    });
+
+    test('synthesizes canonical transaction for mutating tools', () {
+      final bus = RefusionMcpCommandBus();
+      Map<String, Object?>? observedTransaction;
+      bus.registerHandler(
+        commandType: 'refusion.keyframe_edit',
+        handler: (context) {
+          observedTransaction =
+              context.command.payload['transaction'] as Map<String, Object?>?;
+          return RefusionMcpCommandHandlingOutcome(
+            summary: 'Keyframe prepared.',
+            commitOperation: () => const RefusionMcpCommitExecution(
+              revisionAfter: 12,
+            ),
+          );
+        },
+      );
+      final store = RefusionMcpSessionStore();
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_4',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'project_4',
+          activeCompositionId: 'composition_4',
+          timelineRevision: 11,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.motionWrite,
+            RefusionMcpCapability.timelineWrite,
+          },
+        ),
+      );
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: RefusionMcpToolRegistry(),
+        sessionStore: store,
+        revisionReader: () => 11,
+      );
+
+      final result = controlPlane.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.keyframe_edit',
+          sessionId: 'session_4',
+          projectId: 'project_4',
+          commandId: 'cmd_synth_tx',
+          idempotencyKey: 'turn-synth-tx',
+          mode: RefusionMcpCommandMode.commit,
+          expectedRevision: 11,
+          payload: <String, Object?>{
+            'action': 'add',
+            'targetId': 'node_1',
+            'property': 'position.x',
+            'timeMs': 300,
+            'value': 42,
+          },
+        ),
+      );
+
+      expect(result.ok, isTrue);
+      expect(observedTransaction, isNotNull);
+      expect(observedTransaction?['schemaVersion'], 1);
+      expect(observedTransaction?['baseRevision'], 11);
+      expect(observedTransaction?['projectId'], 'project_4');
+      expect(observedTransaction?['compositionId'], 'composition_4');
+      final operations =
+          observedTransaction?['operations'] as List<Map<String, Object?>>?;
+      expect(operations, isNotNull);
+      expect(operations!.isNotEmpty, isTrue);
+      expect(operations.first['kind'], 'refusion.keyframe_edit');
+    });
+
+    test('fails mutating tool when active workspace identity is placeholder',
+        () {
+      final bus = RefusionMcpCommandBus();
+      bus.registerHandler(
+        commandType: 'refusion.insert_layer',
+        handler: (_) => RefusionMcpCommandHandlingOutcome(
+          summary: 'Should not execute with placeholder identity.',
+          commitOperation: () => const RefusionMcpCommitExecution(
+            revisionAfter: 12,
+          ),
+        ),
+      );
+      final store = RefusionMcpSessionStore();
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_5',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'active',
+          activeCompositionId: 'comp_1',
+          timelineRevision: 11,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.timelineWrite,
+          },
+        ),
+      );
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: RefusionMcpToolRegistry(),
+        sessionStore: store,
+        revisionReader: () => 11,
+      );
+
+      final result = controlPlane.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.insert_layer',
+          sessionId: 'session_5',
+          projectId: 'active',
+          commandId: 'cmd_placeholder_identity',
+          idempotencyKey: 'turn-placeholder',
+          mode: RefusionMcpCommandMode.commit,
+          payload: <String, Object?>{
+            'kind': 'solid',
+          },
+        ),
+      );
+
+      expect(result.ok, isFalse);
+      expect(result.error?.code, RefusionMcpCommandErrorCode.validationFailed);
+      expect(
+        result.error?.message.contains('real active workspace identity'),
+        isTrue,
+      );
+    });
+
+    test('fails mutating tool when transaction scope mismatches session', () {
+      final bus = RefusionMcpCommandBus();
+      bus.registerHandler(
+        commandType: 'refusion.update_layer',
+        handler: (_) => RefusionMcpCommandHandlingOutcome(
+          summary: 'Should not execute on mismatched transaction scope.',
+          commitOperation: () => const RefusionMcpCommitExecution(
+            revisionAfter: 12,
+          ),
+        ),
+      );
+      final store = RefusionMcpSessionStore();
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_6',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'project_6',
+          activeCompositionId: 'composition_6',
+          timelineRevision: 11,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.timelineWrite,
+          },
+        ),
+      );
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: RefusionMcpToolRegistry(),
+        sessionStore: store,
+        revisionReader: () => 11,
+      );
+
+      final result = controlPlane.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.update_layer',
+          sessionId: 'session_6',
+          projectId: 'project_6',
+          commandId: 'cmd_scope_mismatch',
+          idempotencyKey: 'turn-scope-mismatch',
+          mode: RefusionMcpCommandMode.commit,
+          payload: <String, Object?>{
+            'transaction': <String, Object?>{
+              'transactionId': 'tx-6',
+              'schemaVersion': 1,
+              'baseRevision': 11,
+              'idempotencyKey': 'idem-6',
+              'projectId': 'project-other',
+              'compositionId': 'composition-other',
+              'operations': <Map<String, Object?>>[
+                <String, Object?>{
+                  'kind': 'refusion.update_layer',
+                  'payload': <String, Object?>{
+                    'targetLayerId': 'layer_1',
+                    'updates': <String, Object?>{'x': 20},
+                  },
+                },
+              ],
+            },
+          },
+        ),
+      );
+
+      expect(result.ok, isFalse);
+      expect(result.error?.code, RefusionMcpCommandErrorCode.validationFailed);
+      expect(
+        result.error?.message.contains(
+          'transaction project scope must match active workspace project',
+        ),
         isTrue,
       );
     });

@@ -29,6 +29,7 @@ b2f97087 checkpoint: finalize workspace identity runtime adoption core
 8446c992 checkpoint: prefer scene context over legacy layers sync
 9f73db64 checkpoint: enforce canonical transaction envelope at json-rpc boundary
 16a45950 checkpoint: normalize canonical transactions in agent control plane
+<pending> checkpoint: harden mutating transaction scope to active workspace identity
 ```
 
 ### What Is Closed
@@ -54,6 +55,7 @@ Cloud bridge fast-sync now reads layer truth from `get_scene_context` first, wit
 JSON-RPC `tools/call` now validates canonical transaction envelopes (`schemaVersion/baseRevision/idempotencyKey/projectId/compositionId/operations`) when provided.
 Malformed canonical transactions now fail early at JSON-RPC boundary instead of reaching runtime handlers.
 Agent control plane now normalizes canonical transaction fields into runtime command envelopes (expectedRevision/idempotency/project scope/payload) before command execution.
+Mutating MCP tools now synthesize canonical transactions when missing and fail closed unless session identity is real (non-placeholder) and transaction scope matches active workspace project/composition.
 ```
 
 ### What Is Not Yet Closed
@@ -100,14 +102,15 @@ Latest observed install time: 2026-05-16 00:46:37
 The next implementation slice is:
 
 ```text
-PLFPW-03B - Canonical Creative Transaction Runtime Cutover
+PLFPW-04 - Universal Target Resolver
 ```
 
-It must move canonical transaction rules from JSON-RPC boundary validation into
-the live mutation path itself, so mutating tools are normalized and applied
-through one transaction contract before any runtime mutation.
+`PLFPW-03B` is now closed: canonical transaction rules moved from JSON-RPC-only
+validation into live mutation path normalization in the agent control plane.
+Mutating calls now fail closed on placeholder identity and transaction scope
+mismatch before command execution.
 
-No new feature work should start before this slice closes.
+No new feature work should start before `PLFPW-04` pre-build gate closes.
 
 ---
 

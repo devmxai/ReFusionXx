@@ -120,6 +120,7 @@ class RefusionMcpAgentControlPlane {
     final normalizedRequest = _normalizeRequestWithCanonicalTransaction(
       request: request,
       descriptor: descriptor,
+      session: session,
       revision: revision,
     );
     if (!normalizedRequest.ok) {
@@ -182,9 +183,26 @@ class RefusionMcpAgentControlPlane {
   _RequestNormalization _normalizeRequestWithCanonicalTransaction({
     required RefusionMcpToolCallRequest request,
     required RefusionMcpToolDescriptor descriptor,
+    required RefusionMcpSession session,
     required int revision,
   }) {
-    final transaction = _readPayload(request.payload['transaction']);
+    if (descriptor.mutating) {
+      final identityValidation = _validateMutatingSessionIdentity(
+        request: request,
+        session: session,
+      );
+      if (!identityValidation.ok) {
+        return identityValidation;
+      }
+    }
+    var transaction = _readPayload(request.payload['transaction']);
+    if (transaction.isEmpty && descriptor.mutating) {
+      transaction = _synthesizeCanonicalTransaction(
+        request: request,
+        session: session,
+        revision: revision,
+      );
+    }
     if (transaction.isEmpty) {
       return _RequestNormalization(ok: true, request: request);
     }
@@ -194,6 +212,15 @@ class RefusionMcpAgentControlPlane {
         ok: false,
         message: validation.message,
       );
+    }
+    if (descriptor.mutating) {
+      final scopeValidation = _validateMutatingTransactionScope(
+        transaction: transaction,
+        session: session,
+      );
+      if (!scopeValidation.ok) {
+        return scopeValidation;
+      }
     }
     final transactionProjectId = _readString(transaction['projectId']);
     final fallbackProjectId = transactionProjectId ?? request.projectId;
@@ -275,6 +302,123 @@ class RefusionMcpAgentControlPlane {
     return _RequestNormalization(ok: true);
   }
 
+  _RequestNormalization _validateMutatingSessionIdentity({
+    required RefusionMcpToolCallRequest request,
+    required RefusionMcpSession session,
+  }) {
+    final activeProjectId = _normalizeProjectIdentity(session.activeProjectId);
+    final activeCompositionId =
+        _normalizeCompositionIdentity(session.activeCompositionId);
+    if (activeProjectId == null || activeCompositionId == null) {
+      return _RequestNormalization(
+        ok: false,
+        message:
+            'Mutating MCP commands require a real active workspace identity before execution.',
+      );
+    }
+    final requestedProjectId = _normalizeProjectIdentity(request.projectId);
+    if (requestedProjectId != null && requestedProjectId != activeProjectId) {
+      return _RequestNormalization(
+        ok: false,
+        message:
+            'Mutating MCP commands must target the active workspace project `${activeProjectId}`.',
+      );
+    }
+    return _RequestNormalization(ok: true);
+  }
+
+  _RequestNormalization _validateMutatingTransactionScope({
+    required Map<String, Object?> transaction,
+    required RefusionMcpSession session,
+  }) {
+    final activeProjectId = _normalizeProjectIdentity(session.activeProjectId);
+    final activeCompositionId =
+        _normalizeCompositionIdentity(session.activeCompositionId);
+    if (activeProjectId == null || activeCompositionId == null) {
+      return _RequestNormalization(
+        ok: false,
+        message:
+            'Mutating MCP commands require a real active workspace identity before execution.',
+      );
+    }
+    final transactionProjectId =
+        _normalizeProjectIdentity(_readString(transaction['projectId']));
+    if (transactionProjectId == null ||
+        transactionProjectId != activeProjectId) {
+      return _RequestNormalization(
+        ok: false,
+        message:
+            'Mutating transaction project scope must match active workspace project `${activeProjectId}`.',
+      );
+    }
+    final transactionCompositionId = _normalizeCompositionIdentity(
+      _readString(transaction['compositionId']),
+    );
+    if (transactionCompositionId == null ||
+        transactionCompositionId != activeCompositionId) {
+      return _RequestNormalization(
+        ok: false,
+        message:
+            'Mutating transaction composition scope must match active workspace composition `${activeCompositionId}`.',
+      );
+    }
+    return _RequestNormalization(ok: true);
+  }
+
+  Map<String, Object?> _synthesizeCanonicalTransaction({
+    required RefusionMcpToolCallRequest request,
+    required RefusionMcpSession session,
+    required int revision,
+  }) {
+    final baseRevision = request.expectedRevision ?? revision;
+    final safeProjectId =
+        _normalizeProjectIdentity(session.activeProjectId) ?? request.projectId;
+    final safeCompositionId =
+        _normalizeCompositionIdentity(session.activeCompositionId) ??
+            session.activeCompositionId.trim();
+    return <String, Object?>{
+      'transactionId': 'txn_${request.commandId}',
+      'schemaVersion': 1,
+      'baseRevision': baseRevision < 0 ? 0 : baseRevision,
+      'idempotencyKey': request.idempotencyKey.trim().isEmpty
+          ? 'mcp-${DateTime.now().microsecondsSinceEpoch}'
+          : request.idempotencyKey,
+      'projectId': safeProjectId,
+      'compositionId': safeCompositionId,
+      'intent': _intentForToolName(request.toolName),
+      'operations': <Map<String, Object?>>[
+        <String, Object?>{
+          'kind': request.toolName,
+          'payload': request.payload,
+        },
+      ],
+      'source': 'mcpAgent',
+    };
+  }
+
+  String _intentForToolName(String toolName) {
+    switch (toolName) {
+      case 'refusion.insert_layer':
+        return 'layerInsert';
+      case 'refusion.update_layer':
+      case 'refusion.set_text_style':
+        return 'layerUpdate';
+      case 'refusion.delete_layer':
+        return 'layerDelete';
+      case 'refusion.apply_motion_patch':
+      case 'refusion.keyframe_edit':
+      case 'refusion.set_element_transform':
+        return 'keyframeBatchApply';
+      case 'refusion.set_layer_style':
+      case 'refusion.set_border':
+      case 'refusion.set_glow':
+      case 'refusion.set_layer_mask':
+        return 'effectApply';
+      default:
+        return 'layerUpdate';
+    }
+  }
+
   RefusionMcpCommandResult _dryRunCommand({
     required RefusionMcpToolCallRequest request,
     required RefusionMcpSession session,
@@ -342,6 +486,43 @@ class RefusionMcpAgentControlPlane {
       return value.trim();
     }
     return null;
+  }
+
+  String? _normalizeProjectIdentity(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    final lower = normalized.toLowerCase();
+    if (const <String>{
+      'active',
+      'default',
+      'motion-project',
+      'project',
+    }.contains(lower)) {
+      return null;
+    }
+    return normalized;
+  }
+
+  String? _normalizeCompositionIdentity(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    final lower = normalized.toLowerCase();
+    if (const <String>{
+      'active-composition',
+      'active',
+      'scene-main',
+      'comp_1',
+      'main',
+      'default',
+      'composition_unknown',
+    }.contains(lower)) {
+      return null;
+    }
+    return normalized;
   }
 
   Map<String, Object?> _serializePending(RefusionMcpPendingTransaction value) {
