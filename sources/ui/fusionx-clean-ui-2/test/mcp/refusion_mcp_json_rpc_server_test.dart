@@ -239,6 +239,124 @@ void main() {
       expect(structured['projectId'], 'active');
     });
 
+    test('accepts canonical transaction envelope on tools/call contract', () {
+      final open = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 101,
+          'method': 'refusion/session/open',
+          'params': <String, Object?>{
+            'session': <String, Object?>{
+              'id': 'session_tx',
+              'clientName': 'codex',
+              'clientVersion': '1.0.0',
+              'transport': 'stdio',
+              'activeProjectId': _sessionProjectId,
+              'activeCompositionId': _sessionCompositionId,
+              'timelineRevision': 5,
+              'capabilities': <String>[
+                'timeline.write',
+                'timeline.read',
+                'project.read',
+              ],
+            },
+          },
+        },
+      );
+      expect(open['error'], isNull);
+
+      final call = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 102,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'refusion.get_project_state',
+            'arguments': <String, Object?>{
+              'sessionId': 'session_tx',
+              'mode': 'dryRun',
+              'payload': const <String, Object?>{},
+              'transaction': const <String, Object?>{
+                'transactionId': 'tx-1',
+                'schemaVersion': 1,
+                'baseRevision': 5,
+                'idempotencyKey': 'tx-key-1',
+                'projectId': _sessionProjectId,
+                'compositionId': _sessionCompositionId,
+                'operations': <Map<String, Object?>>[
+                  <String, Object?>{
+                    'kind': 'text.insert',
+                    'payload': <String, Object?>{'text': 'hello'},
+                  },
+                ],
+              },
+            },
+          },
+        },
+      );
+      final result = call['result'] as Map<String, Object?>;
+      expect(result['isError'], isFalse);
+      final structured = result['structuredContent'] as Map<String, Object?>;
+      final payload = structured['payload'] as Map<String, Object?>;
+      expect(payload['projectId'], 'active');
+    });
+
+    test('rejects malformed canonical transaction envelope', () {
+      final open = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 111,
+          'method': 'refusion/session/open',
+          'params': <String, Object?>{
+            'session': <String, Object?>{
+              'id': 'session_bad_tx',
+              'clientName': 'codex',
+              'clientVersion': '1.0.0',
+              'transport': 'stdio',
+              'activeProjectId': _sessionProjectId,
+              'activeCompositionId': _sessionCompositionId,
+              'timelineRevision': 5,
+              'capabilities': <String>['timeline.write', 'timeline.read'],
+            },
+          },
+        },
+      );
+      expect(open['error'], isNull);
+
+      final call = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 112,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'refusion.insert_layer',
+            'arguments': <String, Object?>{
+              'sessionId': 'session_bad_tx',
+              'projectId': _sessionProjectId,
+              'commandId': 'cmd_bad_tx',
+              'idempotencyKey': 'turn-bad-tx',
+              'mode': 'dryRun',
+              'payload': const <String, Object?>{
+                'kind': 'text',
+              },
+              'transaction': const <String, Object?>{
+                'schemaVersion': 0,
+                'baseRevision': -1,
+                'projectId': _sessionProjectId,
+                'compositionId': _sessionCompositionId,
+                'operations': <Object?>[],
+              },
+            },
+          },
+        },
+      );
+      expect(call['error'], isNotNull);
+      final error = call['error'] as Map<String, Object?>;
+      final message = error['message'] as String;
+      expect(
+          message.contains('Canonical transaction validation failed'), isTrue);
+    });
+
     test('serves creative discovery list tools through tools/call', () {
       final call = server.handle(
         <String, Object?>{

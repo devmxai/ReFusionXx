@@ -142,14 +142,30 @@ class RefusionMcpJsonRpcServer {
         : (modeValue == 'commit'
             ? RefusionMcpCommandMode.commit
             : RefusionMcpCommandMode.dryRun);
-    final expectedRevision = _readInt(arguments['expectedRevision']);
-    final payload = _readMap(arguments['payload']);
+    final rawTransaction = _readMap(arguments['transaction']);
+    final transactionValidation = _validateCanonicalTransaction(
+      transaction: rawTransaction,
+      requiredForMutation: descriptor?.mutating == true,
+    );
+    if (!transactionValidation.ok) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: transactionValidation.message ?? 'Invalid transaction.',
+      );
+    }
+    final expectedRevision = _readInt(arguments['expectedRevision']) ??
+        _readInt(rawTransaction['baseRevision']);
+    final payload = _mergedPayloadWithTransaction(
+      payload: _readMap(arguments['payload']),
+      transaction: rawTransaction,
+    );
     final requestedSessionId = (arguments['sessionId'] as String?)?.trim();
     final sessionId = (requestedSessionId == null || requestedSessionId.isEmpty)
         ? 'default'
         : requestedSessionId;
     final requestedProjectId = _readNormalizedProjectIdentity(
-      arguments['projectId'],
+      arguments['projectId'] ?? rawTransaction['projectId'],
     );
 
     _autoBootstrapSessionIfNeeded(
@@ -166,8 +182,12 @@ class RefusionMcpJsonRpcServer {
         sessionId: sessionId,
         projectId: projectId,
         commandId: (arguments['commandId'] as String?) ??
+            (_readString(rawTransaction['transactionId']) != null
+                ? 'cmd_${_readString(rawTransaction['transactionId'])}'
+                : null) ??
             'cmd_${DateTime.now().microsecondsSinceEpoch}',
         idempotencyKey: (arguments['idempotencyKey'] as String?) ??
+            _readString(rawTransaction['idempotencyKey']) ??
             'mcp-${DateTime.now().microsecondsSinceEpoch}',
         mode: mode,
         expectedRevision: expectedRevision,
@@ -448,31 +468,41 @@ class RefusionMcpJsonRpcServer {
   }
 
   Map<String, Object?> _serializeTool(RefusionMcpToolDescriptor tool) {
+    final inputSchemaProperties = <String, Object?>{
+      'sessionId': <String, Object?>{'type': 'string'},
+      'projectId': <String, Object?>{'type': 'string'},
+      'commandId': <String, Object?>{'type': 'string'},
+      'idempotencyKey': <String, Object?>{'type': 'string'},
+      'mode': <String, Object?>{
+        'type': 'string',
+        'enum': <String>['dryRun', 'commit'],
+      },
+      'expectedRevision': <String, Object?>{'type': 'integer'},
+      'payload': <String, Object?>{'type': 'object'},
+      'transaction': <String, Object?>{
+        'type': 'object',
+        'description':
+            'CanonicalCreativeTransactionV1-compatible envelope (schemaVersion/baseRevision/idempotencyKey/projectId/compositionId/operations).',
+      },
+    };
+    final required = <String>[
+      'sessionId',
+      'projectId',
+      'commandId',
+      'idempotencyKey',
+      'payload',
+    ];
+    if (tool.mutating) {
+      required.add('expectedRevision');
+    }
     return <String, Object?>{
       'name': tool.name,
       'title': tool.title,
       'description': tool.description,
       'inputSchema': <String, Object?>{
         'type': 'object',
-        'properties': <String, Object?>{
-          'sessionId': <String, Object?>{'type': 'string'},
-          'projectId': <String, Object?>{'type': 'string'},
-          'commandId': <String, Object?>{'type': 'string'},
-          'idempotencyKey': <String, Object?>{'type': 'string'},
-          'mode': <String, Object?>{
-            'type': 'string',
-            'enum': <String>['dryRun', 'commit'],
-          },
-          'expectedRevision': <String, Object?>{'type': 'integer'},
-          'payload': <String, Object?>{'type': 'object'},
-        },
-        'required': <String>[
-          'sessionId',
-          'projectId',
-          'commandId',
-          'idempotencyKey',
-          'payload',
-        ],
+        'properties': inputSchemaProperties,
+        'required': required,
       },
       'annotations': <String, Object?>{
         'mutating': tool.mutating,
@@ -607,4 +637,86 @@ class RefusionMcpJsonRpcServer {
     }
     return const <String, Object?>{};
   }
+
+  String? _readString(Object? value) {
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+    return null;
+  }
+
+  _TransactionValidation _validateCanonicalTransaction({
+    required Map<String, Object?> transaction,
+    required bool requiredForMutation,
+  }) {
+    if (transaction.isEmpty) {
+      return requiredForMutation
+          ? const _TransactionValidation(
+              ok: true,
+              message: null,
+            )
+          : const _TransactionValidation(ok: true, message: null);
+    }
+    final schemaVersion = _readInt(transaction['schemaVersion']);
+    final baseRevision = _readInt(transaction['baseRevision']);
+    final idempotencyKey = _readString(transaction['idempotencyKey']);
+    final projectId = _readString(transaction['projectId']);
+    final compositionId = _readString(transaction['compositionId']);
+    final operations = transaction['operations'];
+    final issues = <String>[];
+    if (schemaVersion == null || schemaVersion <= 0) {
+      issues.add('transaction.schemaVersion must be a positive integer');
+    }
+    if (baseRevision == null || baseRevision < 0) {
+      issues.add('transaction.baseRevision must be >= 0');
+    }
+    if (idempotencyKey == null) {
+      issues.add('transaction.idempotencyKey is required');
+    }
+    if (projectId == null) {
+      issues.add('transaction.projectId is required');
+    }
+    if (compositionId == null) {
+      issues.add('transaction.compositionId is required');
+    }
+    if (operations is! List || operations.isEmpty) {
+      issues.add('transaction.operations must be a non-empty array');
+    }
+    if (issues.isNotEmpty) {
+      return _TransactionValidation(
+        ok: false,
+        message:
+            'Canonical transaction validation failed: ${issues.join('; ')}.',
+      );
+    }
+    return const _TransactionValidation(ok: true, message: null);
+  }
+
+  Map<String, Object?> _mergedPayloadWithTransaction({
+    required Map<String, Object?> payload,
+    required Map<String, Object?> transaction,
+  }) {
+    if (transaction.isEmpty) {
+      return payload;
+    }
+    return <String, Object?>{
+      ...payload,
+      'transaction': transaction,
+      if (payload['baseRevision'] == null && transaction['baseRevision'] is int)
+        'baseRevision': transaction['baseRevision'],
+      if (payload['schemaVersion'] == null &&
+          transaction['schemaVersion'] is int)
+        'schemaVersion': transaction['schemaVersion'],
+    };
+  }
+}
+
+class _TransactionValidation {
+  const _TransactionValidation({
+    required this.ok,
+    required this.message,
+  });
+
+  final bool ok;
+  final String? message;
 }
