@@ -168,6 +168,99 @@ OpenCut-grade identity
 
 ## 3. Non-Negotiable Canvas Principles
 
+### 3.0 Mandatory Wireless Device Closure Gate
+
+Every implementation phase in this plan must be closed through a real device
+verification loop on the official connected wireless Android tablet before the
+phase can be marked complete.
+
+This is mandatory even when the phase is mostly domain/model/test work.
+
+The closure loop is:
+
+```text
+1. Implement the phase.
+2. Run the smallest relevant unit/integration tests.
+3. Build/install the current app on the official connected wireless device.
+4. Launch the app and create or open the target composition.
+5. Execute the phase-specific manual/MCP/script scenario.
+6. Capture screenshot(s), logs, and any MCP/app proof output.
+7. Confirm the phase acceptance criteria.
+8. Only then commit/push the checkpoint and mark the phase closed.
+```
+
+If a phase truly has no live UI path yet, the phase still requires:
+
+```text
+device_smoke_launched = true
+app_foreground_verified = true
+no_visual_path_reason = documented
+next_visual_phase_that_consumes_this_work = documented
+```
+
+No phase may be closed with unit tests only when it changes, feeds, validates,
+or constrains:
+
+- canvas dimensions,
+- coordinates,
+- spatial placement,
+- layer identity,
+- timeline projection,
+- renderer proof,
+- MCP writes,
+- script/template writes,
+- manual UI insertion,
+- motion/effect geometry,
+- preview/export geometry.
+
+#### 3.0.1 Required Device Evidence Per Phase
+
+Each phase report must include:
+
+```text
+deviceSerial
+packageName
+installedVersion
+commitHash
+compositionPreset
+canvasWidth
+canvasHeight
+scenarioPayloadsOrManualSteps
+textLayerCountBeforeAfter
+shapeLayerCountBeforeAfter
+expectedBounds
+renderedBounds
+insideCanvas
+timelineClipVisible
+canvasScreenshotPath
+logcatOrAppLogPath
+passFail
+rollbackCommand
+```
+
+#### 3.0.2 Pixel-Exact Canvas Standard
+
+The professional canvas standard is pixel exact:
+
+```text
+composition pixels are the truth
+viewport pixels are display only
+screen pixels never become graph coordinates
+every authored element has evaluated bounds in composition pixels
+every rendered element has verified bounds in viewport pixels
+canvas clipping is mandatory for authored content
+```
+
+Allowed visual error:
+
+```text
+center position error <= 2 composition pixels
+full-canvas background error = 0 composition pixels
+manual/MCP equivalent operation geometry delta <= 2 composition pixels
+transform handle alignment error <= 2 viewport pixels at 1x
+off-canvas authored content = fail unless allowOverflow=true
+```
+
 ### 3.1 One Canonical Storage Space
 
 The internal creative graph uses one canonical coordinate space:
@@ -255,6 +348,104 @@ allowOverflow = true
 ```
 
 Editor handles may overflow. Authored pixels may not.
+
+### 3.6 Agent Spatial Sight Requirement
+
+The agent must be able to inspect the canvas as a professional editor would:
+
+```text
+active composition dimensions
+official canvas bounds
+current frame/time
+selected elements
+visible elements
+element ids
+element intrinsic sizes
+element world bounds
+element viewport bounds
+z-order
+safe-area status
+timeline clip ids
+motion/effect channels
+last manual edits
+last MCP/script/template edits
+```
+
+If the agent cannot read these facts from local evaluated truth, it must not
+guess spatial edits.
+
+### 3.7 Universal Node Spatial Contract
+
+The canvas contract applies to every visible node kind:
+
+```text
+text
+shape
+solid/background
+image
+video
+adjustment
+effect instance
+mask
+motion path
+template element
+future visual node
+```
+
+Each node must support:
+
+```text
+stable identity
+canonical bounds
+intrinsic size when applicable
+anchor/pivot
+transform
+timeline clip mapping
+renderer support status
+export support status
+proof status
+```
+
+No node kind may maintain its own independent coordinate rules.
+
+### 3.8 Canvas Closure Rule
+
+No object may visually appear outside the official canvas frame unless its graph
+node explicitly declares:
+
+```text
+allowOverflow = true
+```
+
+When `allowOverflow=false`, the runtime must enforce:
+
+```text
+content clipped by official canvas clip
+hit testing restricted to visible canvas content
+proof reports clipped bounds
+export output matches preview clipping
+```
+
+The rounded editor preview frame is a UI representation of the official canvas
+clip. It must not be bypassed by MCP, script, templates, manual add buttons, or
+legacy overlays.
+
+### 3.9 Phase Closure Rule
+
+Every phase must end with a written closure note:
+
+```text
+what changed
+what old path was removed/adapted
+what tests passed
+what device scenario was run
+what screenshot/log proves it
+what remains out of scope
+whether the phase is closed or blocked
+```
+
+If any device scenario fails, the phase is blocked. The implementer must not
+move to the next phase until the failure is fixed or explicitly escalated.
 
 ## 4. Current ReFusion Gaps To Close
 
@@ -541,7 +732,14 @@ Tests:
 
 Device check:
 
-- None required unless wired into live paths.
+- Mandatory wireless device smoke:
+  - install the app,
+  - launch editor,
+  - create Story composition,
+  - verify app foreground and canvas preset,
+  - record that this phase is not yet wired into live placement if applicable.
+- If any mapper result is exposed through MCP/app state in this phase, run the
+  center placement scenario on device before closure.
 
 ### PCTE-02: MCP Coordinate Write Gate
 
@@ -575,6 +773,9 @@ Device check:
 - Create Story composition.
 - MCP insert text centered.
 - Verify text appears visually centered, not bottom-right.
+- Capture screenshot and app/MCP proof.
+- Verify authored text is clipped inside the official rounded Story canvas.
+- Verify timeline shows exactly one text clip for the inserted text.
 
 ### PCTE-03: Snapshot Contract Cleanup
 
@@ -625,6 +826,9 @@ Device check:
 - Move it.
 - Ask MCP snapshot.
 - Confirm reported canonical delta matches actual move.
+- Capture before/after screenshots.
+- Confirm the agent-visible geometry matches the actual visual movement in
+  composition pixels.
 
 ### PCTE-04: Unified Canvas Projection
 
@@ -659,6 +863,9 @@ Device check:
 - Add background, text, shape.
 - Zoom/pan preview.
 - Verify content and handles stay aligned.
+- Confirm no authored content escapes the official rounded canvas at any zoom.
+- Confirm handle overlays can appear outside only as editor chrome, not authored
+  content.
 
 ### PCTE-05: Evaluated Element Geometry
 
@@ -687,6 +894,8 @@ Device check:
 - Scrub/play.
 - Query geometry at start/mid/end.
 - Verify geometry and visual result match.
+- Confirm evaluated bounds change with the motion and remain tied to the same
+  element identity.
 
 ### PCTE-06: Spatial Scene Snapshot Tool
 
@@ -729,6 +938,9 @@ Device check:
 - MCP updates same shape.
 - Query snapshot again.
 - Verify same identity and new geometry.
+- Confirm the agent sees the exact manually changed position before applying
+  its edit.
+- Confirm no duplicate layer is created.
 
 ### PCTE-07: Spatial Solver And Semantic Tools
 
@@ -763,6 +975,8 @@ Device check:
 - MCP moves it top third.
 - MCP moves it bottom center.
 - Verify visually and through snapshot.
+- Confirm pixel deltas match the solver output.
+- Confirm `keep_in_canvas` blocks or corrects overflowing authored content.
 
 ### PCTE-08: Renderer Proof Upgrade
 
@@ -801,6 +1015,9 @@ Device check:
 
 - MCP creates background + text + motion.
 - Verify proof includes rendered bounds.
+- Verify proof includes `insideCanvas=true`.
+- Verify proof fails when a command would render outside the canvas without
+  `allowOverflow=true`.
 
 ### PCTE-09: Legacy Coordinate Path Cleanup
 
@@ -828,6 +1045,8 @@ Exit criteria:
 - `rg` confirms no unsupported raw coordinate conversions remain outside
   approved mapper/adapters.
 - Compatibility adapters emit diagnostics when used.
+- Official wireless device E2E passes after cleanup.
+- No legacy path can render authored content outside the official canvas.
 
 ## 7. Acceptance Suite
 
@@ -880,6 +1099,37 @@ Run on the official connected tablet:
 10. Confirm no duplicate text layer.
 ```
 
+Required evidence:
+
+```text
+device screenshot of centered text
+device screenshot of motion mid-frame or scrubbed frame
+timeline screenshot showing background + one text clip
+spatial snapshot JSON
+renderer proof JSON
+logcat/app log excerpt with no coordinate/proof failure
+```
+
+### 7.6 Per-Phase Device Closure Matrix
+
+Each phase must complete the matching wireless-device closure scenario:
+
+| Phase | Required Device Closure |
+| --- | --- |
+| PCTE-00 | Reproduce and screenshot the current wrong placement/failure. |
+| PCTE-01 | Install/launch smoke plus mapper proof in logs or diagnostics. |
+| PCTE-02 | MCP centered text appears in exact center of Story canvas. |
+| PCTE-03 | Manual move is visible to MCP snapshot with exact pixel delta. |
+| PCTE-04 | Text/shape/background stay clipped and aligned at zoom/pan. |
+| PCTE-05 | Motion geometry changes match visual scrub/playback. |
+| PCTE-06 | Agent snapshot sees all visible elements and exact bounds. |
+| PCTE-07 | Semantic placement moves elements to center/top/bottom precisely. |
+| PCTE-08 | Renderer proof passes/fails based on actual rendered bounds. |
+| PCTE-09 | Final cleanup E2E proves no legacy path bypasses canvas truth. |
+
+Skipping a device closure scenario requires an explicit `BLOCKED` note and the
+phase cannot be marked done.
+
 ## 8. KPIs And Budgets
 
 Required metrics:
@@ -887,11 +1137,13 @@ Required metrics:
 ```text
 coordinate_ambiguity_rejection_rate = 100%
 center_insert_visual_error <= 2px at 1x viewport
+full_canvas_background_error = 0px
 manual_mcp_geometry_parity_score >= 0.99
 preview_export_geometry_parity_score >= 0.98
 renderer_proof_false_positive_rate = 0%
 spatial_snapshot_latency_p95 < 120ms for light scenes
 canvas_coordinate_mapping_unit_tests_pass = 100%
+per_phase_wireless_device_closure_rate = 100%
 ```
 
 Performance budgets:
@@ -916,6 +1168,8 @@ Before each implementation phase:
   phase explicitly owns them.
 - Tests to add are named.
 - Device verification method is named.
+- Wireless device availability is confirmed or the phase is blocked.
+- Screenshot/log artifact path is prepared.
 - Rollback command is prepared.
 
 ## 10. Definition Of Done
@@ -924,10 +1178,16 @@ For each phase:
 
 - Unit tests pass.
 - Relevant integration tests pass.
-- Device check passes when the phase touches MCP/apply/preview/canvas.
+- Wireless device check passes for the phase.
 - Screenshots/logs are saved for visual phases.
+- Screenshots/logs are saved for every phase that touches app state, MCP,
+  canvas, timeline, preview, motion, effects, or proof.
 - Legacy paths are removed or downgraded to compatibility adapters.
 - No metadata-only success remains for the phase.
+- Pixel-exact acceptance thresholds are met.
+- Canvas clipping acceptance passes.
+- Agent spatial snapshot/proof is updated when the phase changes agent-visible
+  geometry.
 - Commit checkpoint is created and pushed.
 
 ## 11. Stop List
