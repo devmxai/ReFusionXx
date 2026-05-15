@@ -357,6 +357,74 @@ void main() {
           message.contains('Canonical transaction validation failed'), isTrue);
     });
 
+    test(
+        'rejects canonical update transaction without target hints at tools/call boundary',
+        () {
+      final open = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 1201,
+          'method': 'refusion/session/open',
+          'params': <String, Object?>{
+            'session': <String, Object?>{
+              'id': 'session_missing_target_hints',
+              'clientName': 'codex',
+              'clientVersion': '1.0.0',
+              'transport': 'stdio',
+              'activeProjectId': _sessionProjectId,
+              'activeCompositionId': _sessionCompositionId,
+              'timelineRevision': 5,
+              'capabilities': <String>['timeline.write', 'timeline.read'],
+            },
+          },
+        },
+      );
+      expect(open['error'], isNull);
+
+      final call = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 1202,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'refusion.update_layer',
+            'arguments': <String, Object?>{
+              'sessionId': 'session_missing_target_hints',
+              'projectId': _sessionProjectId,
+              'mode': 'commit',
+              'transaction': const <String, Object?>{
+                'transactionId': 'tx-missing-target-hints',
+                'schemaVersion': 1,
+                'baseRevision': 5,
+                'idempotencyKey': 'tx-key-missing-target-hints',
+                'projectId': _sessionProjectId,
+                'compositionId': _sessionCompositionId,
+                'intent': 'layerUpdate',
+                'operations': <Map<String, Object?>>[
+                  <String, Object?>{
+                    'kind': 'refusion.update_layer',
+                    'payload': <String, Object?>{
+                      'updates': <String, Object?>{'x': 10},
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      );
+
+      final error = call['error'] as Map<String, Object?>?;
+      expect(error, isNotNull);
+      final message = error?['message'] as String? ?? '';
+      expect(
+        message.contains(
+          'transaction target is required for update/effect/motion/delete intents',
+        ),
+        isTrue,
+      );
+    });
+
     test('serves creative discovery list tools through tools/call', () {
       final call = server.handle(
         <String, Object?>{
