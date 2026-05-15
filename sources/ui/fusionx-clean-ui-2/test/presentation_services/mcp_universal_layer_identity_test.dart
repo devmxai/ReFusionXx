@@ -113,6 +113,38 @@ void main() {
       expect(intent, UniversalLayerApplyIntent.motionMutation);
     });
 
+    test('classifies transform mutation when numeric x/y update exists', () {
+      final intent = classifier.classify(
+        payload: const <String, Object?>{
+          'operation': 'insert_layer',
+          'targetLayerId': 'text-1',
+        },
+        updates: const <String, Object?>{
+          'x': 120,
+          'y': -80,
+        },
+        payloadPayload: const <String, Object?>{},
+        updatesPayload: const <String, Object?>{},
+      );
+      expect(intent, UniversalLayerApplyIntent.transformMutation);
+    });
+
+    test('classifies transform mutation when nested payload has numeric scale',
+        () {
+      final intent = classifier.classify(
+        payload: const <String, Object?>{
+          'operation': 'update_layer',
+          'payload': <String, Object?>{
+            'scale': 1.2,
+          },
+        },
+        updates: const <String, Object?>{},
+        payloadPayload: const <String, Object?>{},
+        updatesPayload: const <String, Object?>{},
+      );
+      expect(intent, UniversalLayerApplyIntent.transformMutation);
+    });
+
     test(
         'keeps insert intent for insert_layer with style payload and no target',
         () {

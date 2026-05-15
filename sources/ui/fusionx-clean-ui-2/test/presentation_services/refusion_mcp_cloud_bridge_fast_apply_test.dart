@@ -190,6 +190,44 @@ void main() {
     );
 
     test(
+      'fast sync falls back to unscoped pending commands when scoped response is empty',
+      () async {
+        final server = await _FakeMcpServer.start(
+          diagnosticsDelay: const Duration(milliseconds: 20),
+          scopedPendingEmptyButUnscopedHasCommand: true,
+        );
+        addTearDown(server.close);
+
+        final snapshots = <RefusionMcpCloudBridgeSnapshot>[];
+        final bridge = RefusionMcpCloudBridge(
+          endpoint: server.endpoint,
+          deviceId: 'test-device',
+          contextReader: () => const RefusionMcpCloudContextState(
+            projectId: 'project-1',
+            compositionId: 'composition-1',
+            playheadMs: 1200,
+            timelineRevision: 2,
+            foreground: true,
+          ),
+          onSnapshot: snapshots.add,
+          interval: const Duration(seconds: 60),
+          connectTimeout: const Duration(seconds: 8),
+        );
+        addTearDown(bridge.stop);
+
+        await bridge.syncNow();
+
+        expect(
+            server.callCount('get_pending_commands'), greaterThanOrEqualTo(2));
+        expect(snapshots, isNotEmpty);
+        expect(snapshots.first.pendingCommands, isNotEmpty);
+        final commandPayload = snapshots.first.pendingCommands.single['payload']
+            as Map<String, Object?>;
+        expect(commandPayload['kind'], 'text');
+      },
+    );
+
+    test(
       'fast sync preserves scoped local identity when active context is stale',
       () async {
         final server = await _FakeMcpServer.start(
@@ -327,6 +365,7 @@ class _FakeMcpServer {
     required this.activeCompositionId,
     required this.liveOnline,
     required this.includePendingCommand,
+    required this.scopedPendingEmptyButUnscopedHasCommand,
   });
 
   final HttpServer server;
@@ -338,6 +377,7 @@ class _FakeMcpServer {
   final String activeCompositionId;
   final bool liveOnline;
   final bool includePendingCommand;
+  final bool scopedPendingEmptyButUnscopedHasCommand;
   final Map<String, int> _counts = <String, int>{};
 
   static Future<_FakeMcpServer> start({
@@ -348,6 +388,7 @@ class _FakeMcpServer {
     String activeCompositionId = 'composition-1',
     bool liveOnline = true,
     bool includePendingCommand = false,
+    bool scopedPendingEmptyButUnscopedHasCommand = false,
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final endpoint = Uri.parse(
@@ -363,6 +404,8 @@ class _FakeMcpServer {
       activeCompositionId: activeCompositionId,
       liveOnline: liveOnline,
       includePendingCommand: includePendingCommand,
+      scopedPendingEmptyButUnscopedHasCommand:
+          scopedPendingEmptyButUnscopedHasCommand,
     );
     fake._serve();
     return fake;
@@ -395,7 +438,9 @@ class _FakeMcpServer {
           await Future<void>.delayed(pendingCommandsDelay);
         }
 
-        final payload = _payloadForTool(toolName);
+        final args = (params['arguments'] as Map<String, Object?>?) ??
+            const <String, Object?>{};
+        final payload = _payloadForTool(toolName, args: args);
         final response = <String, Object?>{
           'jsonrpc': '2.0',
           'id': body['id'],
@@ -430,7 +475,10 @@ class _FakeMcpServer {
     }
   }
 
-  Map<String, Object?> _payloadForTool(String toolName) {
+  Map<String, Object?> _payloadForTool(
+    String toolName, {
+    Map<String, Object?> args = const <String, Object?>{},
+  }) {
     switch (toolName) {
       case 'get_active_context':
         return <String, Object?>{
@@ -449,6 +497,30 @@ class _FakeMcpServer {
           },
         };
       case 'get_pending_commands':
+        if (scopedPendingEmptyButUnscopedHasCommand) {
+          final hasScopedSession = args['editorSessionId'] != null;
+          if (hasScopedSession) {
+            return const <String, Object?>{
+              'commands': <Map<String, Object?>>[],
+            };
+          }
+          return const <String, Object?>{
+            'commands': <Map<String, Object?>>[
+              <String, Object?>{
+                'id': 'cmd-unscoped-1',
+                'command_type': 'refusion.insert_layer',
+                'revision_after': 4,
+                'status': 'running',
+                'payload': <String, Object?>{
+                  'kind': 'text',
+                  'payload': <String, Object?>{
+                    'text': 'hello',
+                  },
+                },
+              },
+            ],
+          };
+        }
         return <String, Object?>{
           'commands': includePendingCommand
               ? const <Map<String, Object?>>[

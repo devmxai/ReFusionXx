@@ -2967,6 +2967,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _mcpRemoteElementContextByLayerId(resolvedByIdentity) != null) {
       return resolvedByIdentity;
     }
+    final recipeHint = _firstRemoteString(<Object?>[
+      animation['motionRecipe'],
+      animation['animationRecipe'],
+      animation['recipe'],
+      animation['animation'],
+      animation['preset'],
+      _remoteMap(payload['motion'])['preset'],
+      _remoteMap(_remoteMap(payload['motion'])['in'])['preset'],
+      _remoteMap(updates['motion'])['preset'],
+      _remoteMap(_remoteMap(updates['motion'])['in'])['preset'],
+      _remoteMap(payloadPayload['motion'])['preset'],
+      _remoteMap(_remoteMap(payloadPayload['motion'])['in'])['preset'],
+      _remoteMap(updatesPayload['motion'])['preset'],
+      _remoteMap(_remoteMap(updatesPayload['motion'])['in'])['preset'],
+    ]);
     final isTextLikeOperation = operation.contains('text') ||
         operation.contains('typography') ||
         operation.contains('title') ||
@@ -2974,7 +2989,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         operation.contains('popup') ||
         operation.contains('pop_up') ||
         operation.contains('scale') ||
-        operation.contains('animate');
+        operation.contains('animate') ||
+        (recipeHint != null && _isMcpPopUpRecipe(recipeHint));
     if (!isTextLikeOperation) {
       return null;
     }
@@ -4022,7 +4038,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nestedPayloadProps = _remoteMap(updatesPayload['props']);
     final style = _remoteMap(payload['style']);
     final updateStyle = _remoteMap(updates['style']);
-    final textValue = _firstRemoteString(<Object?>[
+    final rawTextValue = _firstRemoteString(<Object?>[
       nestedLayer['text'],
       nestedLayer['content'],
       nestedLayer['value'],
@@ -4050,9 +4066,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       remoteLayer['text'],
       remoteLayer['content'],
     ]);
-    if (textValue == null || textValue.trim().isEmpty) {
-      return false;
-    }
 
     final currentProject = _motionProject ?? _buildInitialMotionProject();
     final sceneIndex = currentProject.scenes.indexWhere(
@@ -4244,16 +4257,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updates: updates,
       payloadPayload: payloadPayload,
       updatesPayload: updatesPayload,
-      textValue: textValue,
+      textValue: rawTextValue,
       allowContextualFallback: updateIntent || hasLegacyAnimationIntent,
     );
+    final effectiveTextValue =
+        (rawTextValue != null && rawTextValue.trim().isNotEmpty)
+            ? rawTextValue
+            : _mcpResolvedTextValueForContext(existingContext);
+    if (effectiveTextValue == null || effectiveTextValue.trim().isEmpty) {
+      return false;
+    }
     final payloadSignature = _mcpRemoteTextPayloadSignature(
       remoteLayer: remoteLayer,
       payload: payload,
       updates: updates,
       payloadPayload: payloadPayload,
       updatesPayload: updatesPayload,
-      textValue: textValue,
+      textValue: effectiveTextValue,
     );
     final previousSignature = _appliedMcpTextLayerSignatures[remoteLayerId];
     final textElementCountBefore = _mcpTextElementCount(currentProject);
@@ -4357,7 +4377,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           payloadPayload: payloadPayload,
           updatesPayload: updatesPayload,
         ),
-        textValue: textValue,
+        textValue: effectiveTextValue,
         insertionRange: insertionRange,
         fontSize: fontSize,
         positionX: positionX,
@@ -4413,7 +4433,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         project: currentProject,
         sceneId: scene.id,
         projectRange: insertionRange,
-        text: textValue,
+        text: effectiveTextValue,
         elementName: layerName,
         layerName: layerName,
         layerZIndex: zIndex,
@@ -4742,8 +4762,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (remoteLayerId == null || propertyId == null) {
       return false;
     }
+    if (_isMcpUniformScalePropertyId(propertyId)) {
+      final scaleXApplied = _applyRemoteMotionChannelWithDefinition(
+        remoteChannel: remoteChannel,
+        remoteLayerId: remoteLayerId,
+        definition: MotionPropertyCatalog.scaleX,
+      );
+      final scaleYApplied = _applyRemoteMotionChannelWithDefinition(
+        remoteChannel: remoteChannel,
+        remoteLayerId: remoteLayerId,
+        definition: MotionPropertyCatalog.scaleY,
+      );
+      return scaleXApplied || scaleYApplied;
+    }
+    return _applyRemoteMotionChannelWithDefinition(
+      remoteChannel: remoteChannel,
+      remoteLayerId: remoteLayerId,
+      definition: _mcpDefinitionForPropertyId(propertyId),
+    );
+  }
+
+  bool _applyRemoteMotionChannelWithDefinition({
+    required Map<String, Object?> remoteChannel,
+    required String remoteLayerId,
+    required MotionPropertyDefinition? definition,
+  }) {
     final elementContext = _mcpRemoteElementContextByLayerId(remoteLayerId);
-    final definition = _mcpDefinitionForPropertyId(propertyId);
     if (definition == null) {
       return false;
     }
@@ -4765,7 +4809,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         if (kDebugMode) {
           debugPrint(
             'mcp_text_motion_blocked_unresolved_target: '
-            'remoteLayerId=$remoteLayerId property=$propertyId',
+            'remoteLayerId=$remoteLayerId property=${definition.id}',
           );
         }
         return false;
@@ -4774,7 +4818,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         if (kDebugMode) {
           debugPrint(
             'mcp_motion_blocked_unresolved_target: '
-            'remoteLayerId=$remoteLayerId property=$propertyId',
+            'remoteLayerId=$remoteLayerId property=${definition.id}',
           );
         }
         return false;
@@ -4789,7 +4833,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final keyframes = _mcpKeyframesFromRemoteChannel(
       remoteChannel: remoteChannel,
       channelId: _remoteString(remoteChannel['id']) ??
-          'mcp.$remoteLayerId.$propertyId',
+          'mcp.$remoteLayerId.${definition.id}',
       definition: definition,
     );
     if (keyframes.isEmpty) {
@@ -4832,6 +4876,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _markMotionAuthoringChanged();
     });
     return true;
+  }
+
+  bool _isMcpUniformScalePropertyId(String propertyId) {
+    final normalized = propertyId.trim().toLowerCase();
+    return normalized == 'transform.scale' ||
+        normalized == 'scale' ||
+        normalized == 'transform.uniformscale' ||
+        normalized == 'transform.scale.uniform';
   }
 
   bool _applyRemoteMotionChannelToTimelineClip({
@@ -5033,6 +5085,43 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final normalized = value.trim().replaceAll(RegExp(r'\s+'), ' ');
     return normalized.isEmpty ? null : normalized.toLowerCase();
+  }
+
+  String? _mcpResolvedTextValueForContext(_McpRemoteElementContext? context) {
+    if (context == null) {
+      return null;
+    }
+    final project = _motionProject;
+    if (project == null) {
+      return null;
+    }
+    for (final scene in project.scenes) {
+      if (scene.id != context.sceneId) {
+        continue;
+      }
+      for (final layer in scene.layers) {
+        if (layer.id != context.layerId) {
+          continue;
+        }
+        for (final element in layer.elements) {
+          if (element.id != context.elementId ||
+              element.kind != MotionElementKind.text) {
+            continue;
+          }
+          final binding = element.sourceBinding;
+          final metadata = binding?.metadata ?? const <String, String>{};
+          final resolved = _firstRemoteString(<Object?>[
+            metadata['text'],
+            binding?.label,
+            element.name,
+          ]);
+          if (resolved != null && resolved.trim().isNotEmpty) {
+            return resolved;
+          }
+        }
+      }
+    }
+    return null;
   }
 
   _McpRemoteElementContext? _mcpRemoteShapeElementContextByLayerId(
@@ -5487,9 +5576,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final normalized = propertyId.trim().toLowerCase();
     switch (normalized) {
       case 'transform.position.x':
+      case 'transform.translate.x':
+      case 'transform.translation.x':
       case 'position.x':
         return MotionPropertyCatalog.positionX;
       case 'transform.position.y':
+      case 'transform.translate.y':
+      case 'transform.translation.y':
       case 'position.y':
         return MotionPropertyCatalog.positionY;
       case 'transform.scale.x':
@@ -5499,10 +5592,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       case 'scale.y':
         return MotionPropertyCatalog.scaleY;
       case 'transform.rotation.degrees':
+      case 'transform.rotation':
       case 'rotation':
       case 'rotation.degrees':
         return MotionPropertyCatalog.rotationDegrees;
       case 'visual.opacity':
+      case 'visual.opacity.alpha':
       case 'opacity':
         return MotionPropertyCatalog.opacity;
     }
@@ -5659,6 +5754,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, Object?> updatesPayload,
     required String textValue,
   }) {
+    final payloadStyle = _remoteMap(payload['style']);
+    final updatesStyle = _remoteMap(updates['style']);
+    final motion = _remoteMap(payload['motion']);
+    final updatesMotion = _remoteMap(updates['motion']);
+    final payloadAnimation = _remoteMap(payload['animation']);
+    final updatesAnimation = _remoteMap(updates['animation']);
     return jsonEncode(<String, Object?>{
       'remoteLayerId': _remoteString(remoteLayer['id']),
       'updatedAt': _remoteString(remoteLayer['updated_at']),
@@ -5699,6 +5800,62 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         updatesPayload['clipId'],
       ]),
       'text': textValue,
+      'x': _firstRemoteDouble(<Object?>[
+        updates['x'],
+        payload['x'],
+        updatesPayload['x'],
+        payloadPayload['x'],
+      ]),
+      'y': _firstRemoteDouble(<Object?>[
+        updates['y'],
+        payload['y'],
+        updatesPayload['y'],
+        payloadPayload['y'],
+      ]),
+      'centerX': _firstRemoteDouble(<Object?>[
+        updates['centerX'],
+        payload['centerX'],
+        updatesPayload['centerX'],
+        payloadPayload['centerX'],
+      ]),
+      'centerY': _firstRemoteDouble(<Object?>[
+        updates['centerY'],
+        payload['centerY'],
+        updatesPayload['centerY'],
+        payloadPayload['centerY'],
+      ]),
+      'fontSize': _firstRemoteDouble(<Object?>[
+        updates['fontSize'],
+        payload['fontSize'],
+        updatesPayload['fontSize'],
+        payloadPayload['fontSize'],
+      ]),
+      'opacity': _firstRemoteDouble(<Object?>[
+        updates['opacity'],
+        payload['opacity'],
+        updatesPayload['opacity'],
+        payloadPayload['opacity'],
+      ]),
+      'color': _firstRemoteString(<Object?>[
+        updates['color'],
+        payload['color'],
+        updatesStyle['color'],
+        payloadStyle['color'],
+        updates['fill'],
+        payload['fill'],
+        updatesStyle['fill'],
+        payloadStyle['fill'],
+      ]),
+      'motionPreset': _firstRemoteString(<Object?>[
+        motion['preset'],
+        _remoteMap(motion['in'])['preset'],
+        updatesMotion['preset'],
+        _remoteMap(updatesMotion['in'])['preset'],
+        payloadAnimation['preset'],
+        payloadAnimation['recipe'],
+        updatesAnimation['preset'],
+        updatesAnimation['recipe'],
+      ]),
     });
   }
 

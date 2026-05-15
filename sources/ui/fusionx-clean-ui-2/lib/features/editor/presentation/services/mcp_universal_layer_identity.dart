@@ -418,37 +418,10 @@ class UniversalLayerApplyIntentClassifier {
       return UniversalLayerApplyIntent.styleMutation;
     }
     final hasTransformMutation = operation.contains('transform') ||
-        _firstText(<Object?>[
-              payload['x'],
-              payload['y'],
-              payload['position'],
-              payload['centerX'],
-              payload['centerY'],
-              payload['scale'],
-              payload['rotation'],
-              updates['x'],
-              updates['y'],
-              updates['position'],
-              updates['centerX'],
-              updates['centerY'],
-              updates['scale'],
-              updates['rotation'],
-              payloadPayload['x'],
-              payloadPayload['y'],
-              payloadPayload['position'],
-              payloadPayload['centerX'],
-              payloadPayload['centerY'],
-              payloadPayload['scale'],
-              payloadPayload['rotation'],
-              updatesPayload['x'],
-              updatesPayload['y'],
-              updatesPayload['position'],
-              updatesPayload['centerX'],
-              updatesPayload['centerY'],
-              updatesPayload['scale'],
-              updatesPayload['rotation'],
-            ]) !=
-            null;
+        _hasAnyTransformSignal(payload) ||
+        _hasAnyTransformSignal(updates) ||
+        _hasAnyTransformSignal(payloadPayload) ||
+        _hasAnyTransformSignal(updatesPayload);
     final transformMutationByOperation = operation.contains('transform') ||
         operation.contains('move') ||
         operation.contains('position');
@@ -479,6 +452,50 @@ class UniversalLayerApplyIntentClassifier {
       return UniversalLayerApplyIntent.insert;
     }
     return UniversalLayerApplyIntent.insert;
+  }
+
+  static bool _hasAnyTransformSignal(Map<String, Object?> container) {
+    if (container.isEmpty) {
+      return false;
+    }
+    if (_hasTransformSignalInMap(container)) {
+      return true;
+    }
+    for (final entry in container.values) {
+      final nested = _asMap(entry);
+      if (nested.isNotEmpty && _hasTransformSignalInMap(nested)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _hasTransformSignalInMap(Map<String, Object?> map) {
+    if (map.containsKey('position')) {
+      return true;
+    }
+    if (_isFiniteNumber(map['x']) ||
+        _isFiniteNumber(map['y']) ||
+        _isFiniteNumber(map['centerX']) ||
+        _isFiniteNumber(map['centerY']) ||
+        _isFiniteNumber(map['scale']) ||
+        _isFiniteNumber(map['scaleX']) ||
+        _isFiniteNumber(map['scaleY']) ||
+        _isFiniteNumber(map['rotation']) ||
+        _isFiniteNumber(map['rotationDeg'])) {
+      return true;
+    }
+    return false;
+  }
+
+  static bool _isFiniteNumber(Object? value) {
+    if (value is num) {
+      return value.isFinite;
+    }
+    if (value is String) {
+      return num.tryParse(value.trim()) != null;
+    }
+    return false;
   }
 
   static Map<String, Object?> _asMap(Object? value) {

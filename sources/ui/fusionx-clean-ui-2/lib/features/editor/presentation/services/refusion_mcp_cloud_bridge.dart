@@ -555,7 +555,10 @@ class RefusionMcpCloudBridge {
     var pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
       pendingCommandsResponse,
     );
-    if (pendingCommandTargetLayerIds.isNotEmpty || liveSessionId == null) {
+    final scopedCommands = _pendingCommandList(pendingCommandsResponse);
+    if (pendingCommandTargetLayerIds.isNotEmpty ||
+        scopedCommands.isNotEmpty ||
+        liveSessionId == null) {
       return pendingCommandsResponse;
     }
     final unscopedPendingCommandsResponse = await _safeCallTool(
@@ -571,10 +574,25 @@ class RefusionMcpCloudBridge {
     final unscopedPendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
       unscopedPendingCommandsResponse,
     );
-    if (unscopedPendingCommandTargetLayerIds.isEmpty) {
+    final unscopedCommands =
+        _pendingCommandList(unscopedPendingCommandsResponse);
+    if (unscopedPendingCommandTargetLayerIds.isEmpty &&
+        unscopedCommands.isEmpty) {
       return pendingCommandsResponse;
     }
     return unscopedPendingCommandsResponse;
+  }
+
+  List<Map<String, Object?>> _pendingCommandList(
+    Map<String, Object?>? pendingCommandsRpcResult,
+  ) {
+    if (pendingCommandsRpcResult == null) {
+      return const <Map<String, Object?>>[];
+    }
+    final pendingStructured =
+        _asMap(pendingCommandsRpcResult['structuredContent']);
+    final pendingPayload = _asMap(pendingStructured['payload']);
+    return _asListOfMap(pendingPayload['commands']);
   }
 
   void _scheduleDiagnosticsSync(_DiagnosticsSyncRequest request) {
