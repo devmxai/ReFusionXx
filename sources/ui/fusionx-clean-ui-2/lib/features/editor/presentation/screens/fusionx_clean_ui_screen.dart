@@ -6103,10 +6103,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return value;
     }
     // Legacy MCP payloads have historically mixed absolute `x/y` with the
-    // newer center-origin canvas contract. Values that fit inside the
-    // center-origin range are treated as canonical; larger positive values are
-    // interpreted as absolute canvas pixels for backward compatibility.
-    if (value.abs() <= halfExtent) {
+    // newer center-origin canvas contract. Ambiguous values strictly inside the
+    // center-origin range are treated as canonical; boundary values are treated
+    // as absolute canvas pixels so Story center payloads like `x=540,y=960`
+    // map to canonical center instead of bottom-right edge.
+    if (value.abs() < halfExtent) {
       return value;
     }
     return value - halfExtent;
