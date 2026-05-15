@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_agent_control_plane.dart';
-import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_capability.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command_bus.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_motion_tools.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_mvp_toolkit.dart';
@@ -15,6 +14,9 @@ import 'package:refusion_app/features/editor/domain/models/professional_motion_t
 import 'package:refusion_app/features/editor/presentation/mcp/refusion_mcp_app_bridge.dart';
 import 'package:refusion_app/features/editor/presentation/mcp/refusion_mcp_json_rpc_server.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
+
+const _e2eProjectId = 'project_e2e_1';
+const _e2eCompositionId = 'composition_e2e_1';
 
 void main() {
   group('Refusion MCP end-to-end workflow', () {
@@ -118,8 +120,8 @@ void main() {
               'clientName': 'codex',
               'clientVersion': '1.0.0',
               'transport': 'stdio',
-              'activeProjectId': 'active',
-              'activeCompositionId': 'comp_1',
+              'activeProjectId': _e2eProjectId,
+              'activeCompositionId': _e2eCompositionId,
               'timelineRevision': revision,
               'capabilities': <String>[
                 'project.read',
@@ -302,7 +304,7 @@ Map<String, Object?> _callTool({
         'name': toolName,
         'arguments': <String, Object?>{
           'sessionId': 'session_e2e',
-          'projectId': 'active',
+          'projectId': _e2eProjectId,
           'commandId': 'cmd_$id',
           'idempotencyKey': 'e2e_$id',
           'mode': mode,

@@ -148,12 +148,17 @@ class RefusionMcpJsonRpcServer {
     final sessionId = (requestedSessionId == null || requestedSessionId.isEmpty)
         ? 'default'
         : requestedSessionId;
-    final projectId = (arguments['projectId'] as String?) ?? 'active';
+    final requestedProjectId = _readNormalizedProjectIdentity(
+      arguments['projectId'],
+    );
 
     _autoBootstrapSessionIfNeeded(
       sessionId: sessionId,
-      projectId: projectId,
+      projectId: requestedProjectId,
     );
+
+    final projectId =
+        requestedProjectId ?? _activeProjectIdForSession(sessionId) ?? '';
 
     final response = _bridge.executeTool(
       RefusionMcpToolCallRequest(
@@ -201,7 +206,7 @@ class RefusionMcpJsonRpcServer {
 
   void _autoBootstrapSessionIfNeeded({
     required String sessionId,
-    required String projectId,
+    required String? projectId,
   }) {
     final hasSession =
         _bridge.listSessions().any((session) => session.id == sessionId);
@@ -217,6 +222,9 @@ class RefusionMcpJsonRpcServer {
     if (pairingRequired) {
       return;
     }
+    if (projectId == null || projectId.isEmpty) {
+      return;
+    }
     final granted =
         _bridge.grantCapabilities(RefusionMcpCapability.values.toSet());
     _bridge.openSession(
@@ -226,7 +234,7 @@ class RefusionMcpJsonRpcServer {
         clientVersion: '0.1.0',
         transport: 'streamable-http',
         activeProjectId: projectId,
-        activeCompositionId: 'comp_1',
+        activeCompositionId: '',
         timelineRevision: 0,
         grantedCapabilities: granted,
       ),
@@ -369,6 +377,26 @@ class RefusionMcpJsonRpcServer {
         .whereType<RefusionMcpCapability>()
         .toSet();
     final capabilities = _bridge.grantCapabilities(requestedCapabilities);
+    final activeProjectId =
+        _readNormalizedProjectIdentity(sessionMap['activeProjectId']);
+    if (activeProjectId == null) {
+      return _error(
+        id: id,
+        code: -32602,
+        message:
+            'session.activeProjectId is required and cannot be a placeholder identity.',
+      );
+    }
+    final activeCompositionId =
+        _readNormalizedCompositionIdentity(sessionMap['activeCompositionId']);
+    if (activeCompositionId == null) {
+      return _error(
+        id: id,
+        code: -32602,
+        message:
+            'session.activeCompositionId is required and cannot be a placeholder identity.',
+      );
+    }
 
     _bridge.openSession(
       RefusionMcpSession(
@@ -376,9 +404,8 @@ class RefusionMcpJsonRpcServer {
         clientName: (sessionMap['clientName'] as String?) ?? 'unknown',
         clientVersion: (sessionMap['clientVersion'] as String?) ?? '0.0.0',
         transport: (sessionMap['transport'] as String?) ?? 'stdio',
-        activeProjectId: (sessionMap['activeProjectId'] as String?) ?? 'active',
-        activeCompositionId:
-            (sessionMap['activeCompositionId'] as String?) ?? 'comp_1',
+        activeProjectId: activeProjectId,
+        activeCompositionId: activeCompositionId,
         timelineRevision: _readInt(sessionMap['timelineRevision']) ?? 0,
         grantedCapabilities: capabilities,
       ),
@@ -502,6 +529,66 @@ class RefusionMcpJsonRpcServer {
       return value.round();
     }
     return null;
+  }
+
+  String? _activeProjectIdForSession(String sessionId) {
+    for (final session in _bridge.listSessions()) {
+      if (session.id != sessionId) {
+        continue;
+      }
+      return _normalizedProjectIdentity(session.activeProjectId);
+    }
+    return null;
+  }
+
+  String? _readNormalizedProjectIdentity(Object? value) {
+    if (value is! String) {
+      return null;
+    }
+    return _normalizedProjectIdentity(value);
+  }
+
+  String? _readNormalizedCompositionIdentity(Object? value) {
+    if (value is! String) {
+      return null;
+    }
+    return _normalizedCompositionIdentity(value);
+  }
+
+  String? _normalizedProjectIdentity(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    final lower = normalized.toLowerCase();
+    if (const <String>{
+      'active',
+      'default',
+      'motion-project',
+      'project',
+    }.contains(lower)) {
+      return null;
+    }
+    return normalized;
+  }
+
+  String? _normalizedCompositionIdentity(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    final lower = normalized.toLowerCase();
+    if (const <String>{
+      'active-composition',
+      'active',
+      'scene-main',
+      'comp_1',
+      'main',
+      'default',
+    }.contains(lower)) {
+      return null;
+    }
+    return normalized;
   }
 
   Map<String, Object?> _readMap(Object? value) {

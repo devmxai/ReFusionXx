@@ -11,6 +11,10 @@ import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_tool_regist
 import 'package:refusion_app/features/editor/presentation/mcp/refusion_mcp_app_bridge.dart';
 import 'package:refusion_app/features/editor/presentation/mcp/refusion_mcp_json_rpc_server.dart';
 
+const _sessionProjectId = 'project_main_1';
+const _sessionCompositionId = 'composition_story_1';
+const _autoBootstrapProjectId = 'project_auto_1';
+
 void main() {
   group('RefusionMcpJsonRpcServer', () {
     late RefusionMcpJsonRpcServer server;
@@ -123,8 +127,8 @@ void main() {
               'clientName': 'codex',
               'clientVersion': '1.0.0',
               'transport': 'stdio',
-              'activeProjectId': 'active',
-              'activeCompositionId': 'comp_1',
+              'activeProjectId': _sessionProjectId,
+              'activeCompositionId': _sessionCompositionId,
               'timelineRevision': 5,
               'capabilities': <String>[
                 'project.read',
@@ -152,7 +156,7 @@ void main() {
             'name': 'refusion.get_project_state',
             'arguments': <String, Object?>{
               'sessionId': 'session_1',
-              'projectId': 'active',
+              'projectId': _sessionProjectId,
               'commandId': 'cmd_1',
               'idempotencyKey': 'turn-1',
               'mode': 'dryRun',
@@ -178,7 +182,7 @@ void main() {
             'name': 'refusion.get_project_state',
             'arguments': <String, Object?>{
               'sessionId': 'default',
-              'projectId': 'active',
+              'projectId': _autoBootstrapProjectId,
               'commandId': 'cmd_auto',
               'idempotencyKey': 'turn-auto',
               'mode': 'dryRun',
@@ -221,7 +225,7 @@ void main() {
             'name': 'get_project_state',
             'arguments': <String, Object?>{
               'sessionId': 'default',
-              'projectId': 'active',
+              'projectId': _autoBootstrapProjectId,
               'mode': 'dryRun',
               'payload': const <String, Object?>{},
             },
@@ -245,7 +249,7 @@ void main() {
             'name': 'list_components',
             'arguments': <String, Object?>{
               'sessionId': 'default',
-              'projectId': 'active',
+              'projectId': _autoBootstrapProjectId,
               'mode': 'dryRun',
               'payload': const <String, Object?>{},
             },
@@ -270,7 +274,7 @@ void main() {
             'name': 'get_launch_readiness',
             'arguments': <String, Object?>{
               'sessionId': 'default',
-              'projectId': 'active',
+              'projectId': _autoBootstrapProjectId,
               'mode': 'dryRun',
               'payload': const <String, Object?>{
                 'skillMarkdown': '# skill',
@@ -387,8 +391,8 @@ void main() {
               'clientName': 'codex',
               'clientVersion': '1.0.0',
               'transport': 'stdio',
-              'activeProjectId': 'active',
-              'activeCompositionId': 'comp_1',
+              'activeProjectId': _sessionProjectId,
+              'activeCompositionId': _sessionCompositionId,
               'timelineRevision': 5,
               'capabilities': <String>['project.read'],
             },
@@ -409,8 +413,8 @@ void main() {
               'clientName': 'codex',
               'clientVersion': '1.0.0',
               'transport': 'stdio',
-              'activeProjectId': 'active',
-              'activeCompositionId': 'comp_1',
+              'activeProjectId': _sessionProjectId,
+              'activeCompositionId': _sessionCompositionId,
               'timelineRevision': 5,
               'capabilities': <String>['project.read'],
             },
@@ -430,7 +434,7 @@ void main() {
             'name': 'refusion.get_project_state',
             'arguments': <String, Object?>{
               'sessionId': 'default',
-              'projectId': 'active',
+              'projectId': _autoBootstrapProjectId,
               'commandId': 'cmd_secure',
               'idempotencyKey': 'turn-secure',
               'mode': 'dryRun',

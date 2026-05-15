@@ -9,6 +9,9 @@ import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_tool_regist
 import 'package:refusion_app/features/editor/presentation/mcp/refusion_mcp_app_bridge.dart';
 import 'package:refusion_app/features/editor/presentation/mcp/refusion_mcp_json_rpc_server.dart';
 
+const _hostSessionProjectId = 'project_host_1';
+const _hostSessionCompositionId = 'composition_host_1';
+
 void main() {
   group('Refusion MCP Codex host compatibility', () {
     test('supports discovery + session open + dry-run command path', () {
@@ -145,8 +148,8 @@ void main() {
               'clientName': 'codex',
               'clientVersion': '1.0.0',
               'transport': 'stdio',
-              'activeProjectId': 'active',
-              'activeCompositionId': 'comp_1',
+              'activeProjectId': _hostSessionProjectId,
+              'activeCompositionId': _hostSessionCompositionId,
               'timelineRevision': 9,
               'capabilities': <String>[
                 'project.read',
@@ -168,7 +171,7 @@ void main() {
             'name': 'refusion.dry_run_command',
             'arguments': <String, Object?>{
               'sessionId': 'codex_session',
-              'projectId': 'active',
+              'projectId': _hostSessionProjectId,
               'commandId': 'cmd_6',
               'idempotencyKey': 'turn-6',
               'mode': 'dryRun',
@@ -196,7 +199,7 @@ void main() {
             'name': 'refusion.get_security_profile',
             'arguments': <String, Object?>{
               'sessionId': 'codex_session',
-              'projectId': 'active',
+              'projectId': _hostSessionProjectId,
               'commandId': 'cmd_7',
               'idempotencyKey': 'turn-7',
               'mode': 'dryRun',
@@ -224,7 +227,7 @@ void main() {
             'name': 'refusion.get_host_compatibility',
             'arguments': <String, Object?>{
               'sessionId': 'codex_session',
-              'projectId': 'active',
+              'projectId': _hostSessionProjectId,
               'commandId': 'cmd_8',
               'idempotencyKey': 'turn-8',
               'mode': 'dryRun',
