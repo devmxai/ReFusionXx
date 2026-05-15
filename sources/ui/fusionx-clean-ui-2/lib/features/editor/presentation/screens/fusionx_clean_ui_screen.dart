@@ -31570,14 +31570,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                   fit: StackFit.expand,
                   children: [
                     if (activeVisualOpacity < 0.999)
-                      Positioned.fill(
+                      Positioned.fromRect(
+                        rect: PreviewStageCanvasViewport.maybeOf(context)
+                                ?.canvasRect ??
+                            Rect.fromLTWH(
+                              0,
+                              0,
+                              _motionProjectFormat.canvasSize.width,
+                              _motionProjectFormat.canvasSize.height,
+                            ),
                         child: IgnorePointer(
-                          child: ColoredBox(
-                            color:
-                                _compositionCanvasBackgroundColor.withOpacity(
-                              (1 - activeVisualOpacity)
-                                  .clamp(0.0, 1.0)
-                                  .toDouble(),
+                          child: ClipRect(
+                            child: ColoredBox(
+                              color:
+                                  _compositionCanvasBackgroundColor.withOpacity(
+                                (1 - activeVisualOpacity)
+                                    .clamp(0.0, 1.0)
+                                    .toDouble(),
+                              ),
                             ),
                           ),
                         ),

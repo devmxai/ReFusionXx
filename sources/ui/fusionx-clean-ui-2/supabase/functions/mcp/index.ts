@@ -679,6 +679,18 @@ async function getBoundContext(agentSession: AgentSessionRow) {
     'refusion_active_contexts',
     agentSession.active_context_id,
   );
+  const { data: editorSessionRows, error: editorSessionError } = await admin
+    .from('refusion_editor_sessions')
+    .select('*')
+    .eq('owner_id', agentSession.owner_id)
+    .eq('project_id', agentSession.project_id)
+    .eq('composition_id', agentSession.composition_id)
+    .in('status', ['online', 'background'])
+    .order('foreground', { ascending: false })
+    .order('last_seen_at', { ascending: false })
+    .limit(1);
+  if (editorSessionError) throw editorSessionError;
+  const editorSession = (editorSessionRows ?? [])[0] as JsonMap | null;
   const revision = await projectRevision(agentSession.project_id);
 
   return {
@@ -703,10 +715,12 @@ async function getBoundContext(agentSession: AgentSessionRow) {
     },
     liveEditor: {
       online: true,
-      sessionId: agentSession.app_session_id,
-      deviceId: null,
-      foreground: true,
-      lastSeenAt: null,
+      sessionId: editorSession?.id ?? null,
+      editorSessionId: editorSession?.id ?? null,
+      appSessionId: agentSession.app_session_id,
+      deviceId: editorSession?.device_id ?? null,
+      foreground: editorSession?.foreground ?? true,
+      lastSeenAt: editorSession?.last_seen_at ?? null,
     },
     auth: {
       source: 'agent-session',
@@ -1046,11 +1060,17 @@ async function getPendingCommands(
     return fail('ACTIVE_CONTEXT_REQUIRED');
   }
 
-  const limit = Math.max(
+  const requestedLimit = Math.max(
     1,
     Math.min(100, numberValue(args.limit, 30)),
   );
-  const appSessionId = stringValue(args.appSessionId);
+  const queryLimit = Math.max(requestedLimit, 80);
+  const editorSessionId = firstText(
+    args.editorSessionId,
+    args.editor_session_id,
+    args.appSessionId,
+    args.sessionId,
+  );
   const query = admin
     .from('refusion_agent_commands')
     .select('*')
@@ -1058,33 +1078,41 @@ async function getPendingCommands(
     .eq('project_id', projectId)
     .eq('composition_id', compositionId)
     .in('status', ['pending', 'running'])
-    .order('created_at', { ascending: true })
-    .limit(limit);
+    .order('created_at', { ascending: false })
+    .limit(queryLimit);
   const { data: rows, error } = await query;
   if (error) throw error;
 
   const markReceived = args.markReceived !== false;
   const nowIso = new Date().toISOString();
+  const nowMs = Date.parse(nowIso);
   const commands: JsonMap[] = [];
   for (const row of rows ?? []) {
     const rowMap = readMap(row);
     const rowSessionId = stringValue(rowMap.editor_session_id);
-    if (appSessionId && rowSessionId && rowSessionId !== appSessionId) {
-      continue;
-    }
     const commandId = stringValue(rowMap.id);
     const status = text(rowMap.status, 'pending');
+    const claimedAt = stringValue(rowMap.claimed_at);
+    const claimedAgeMs = claimedAt ? nowMs - Date.parse(claimedAt) : Number.POSITIVE_INFINITY;
+    const staleRunning =
+      status === 'running' &&
+      (!Number.isFinite(claimedAgeMs) || claimedAgeMs >= 10_000);
+    const sessionMatches =
+      !editorSessionId || !rowSessionId || rowSessionId === editorSessionId;
+    if (status === 'running' && !sessionMatches && !staleRunning) {
+      continue;
+    }
     const result = readMap(rowMap.result);
-    const shouldClaimForAppSession = !!appSessionId &&
-      (!rowSessionId || rowSessionId !== appSessionId);
-    const shouldMarkReceived = status === 'pending' || shouldClaimForAppSession;
+    const shouldClaimForEditorSession = !!editorSessionId &&
+      (!rowSessionId || rowSessionId !== editorSessionId || staleRunning);
+    const shouldMarkReceived = status === 'pending' || shouldClaimForEditorSession;
     const nextLifecycle = {
       ...readMap(result.lifecycle),
       stage: shouldMarkReceived ? 'appReceived' : text(
         readMap(result.lifecycle).stage,
         'cloudCommitted',
       ),
-      appSessionId: appSessionId || rowSessionId,
+      editorSessionId: editorSessionId || rowSessionId,
       appReceivedAt: shouldMarkReceived ? nowIso : firstText(
         readMap(result.lifecycle).appReceivedAt,
         nowIso,
@@ -1096,7 +1124,7 @@ async function getPendingCommands(
         .update({
           status: 'running',
           claimed_at: nowIso,
-          editor_session_id: appSessionId || rowSessionId,
+          editor_session_id: editorSessionId || rowSessionId,
           result: {
             ...result,
             lifecycle: nextLifecycle,
@@ -1112,13 +1140,20 @@ async function getPendingCommands(
       };
     }
     commands.push(rowMap);
+    if (commands.length >= requestedLimit) {
+      break;
+    }
   }
+  commands.sort((a, b) =>
+    text(a.created_at, '').localeCompare(text(b.created_at, ''))
+  );
 
   return ok('Pending commands loaded.', {
     schemaVersion: 'refusion.commandBus/v1',
     projectId,
     compositionId,
-    appSessionId,
+    appSessionId: editorSessionId,
+    editorSessionId,
     count: commands.length,
     commands,
   });
@@ -1172,10 +1207,15 @@ async function ackCommandApplied(
     ascending: true,
   });
   if (error) throw error;
+  const editorSessionId = firstText(
+    args.editorSessionId,
+    args.editor_session_id,
+    args.appSessionId,
+    args.sessionId,
+  );
   const appSessionId = firstText(
     args.appSessionId,
     args.app_session_id,
-    args.sessionId,
   );
   const deviceId = firstText(args.deviceId, args.device_id);
   const proofInput = readMap(args.proof);
@@ -1317,6 +1357,7 @@ async function ackCommandApplied(
         ...lifecycle,
         stage: appliedSuccessfully ? 'rendererApplied' : 'blocked',
         appSessionId: appSessionId || firstText(lifecycle.appSessionId),
+        editorSessionId: editorSessionId || firstText(lifecycle.editorSessionId),
         deviceId: deviceId || firstText(lifecycle.deviceId),
         ackAt: nowIso,
       },
@@ -1325,7 +1366,7 @@ async function ackCommandApplied(
       .from('refusion_agent_commands')
       .update({
         status: nextStatus,
-        editor_session_id: appSessionId || commandMap.editor_session_id,
+        editor_session_id: editorSessionId || commandMap.editor_session_id,
         result: nextResult,
         error_message: appliedSuccessfully
           ? null
@@ -1360,6 +1401,7 @@ async function ackCommandApplied(
     commandIds: acknowledgedCommandIds,
     failedCommandIds,
     appSessionId,
+    editorSessionId,
     appliedSuccessfully: acknowledged > 0 && failedCommandIds.length === 0,
   });
 }

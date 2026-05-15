@@ -353,7 +353,8 @@ class RefusionMcpCloudBridge {
         final remoteCompositionId = _normalizedIdentifierOrNull(
           _asString(contextComposition['id']) ?? '',
         );
-        final liveSessionId = _asString(contextLiveEditor['sessionId']);
+        final liveSessionId = _asString(contextLiveEditor['editorSessionId']) ??
+            _asString(contextLiveEditor['sessionId']);
         final remoteContextIsLive = contextLiveEditor['online'] == true;
         Map<String, Object?>? pendingCommandsResponse;
         Map<String, Object?>? layersResponse;
@@ -441,7 +442,8 @@ class RefusionMcpCloudBridge {
       final contextStructured = _asMap(contextResponse['structuredContent']);
       final contextPayload = _asMap(contextStructured['payload']);
       final contextLiveEditor = _asMap(contextPayload['liveEditor']);
-      final liveSessionId = _asString(contextLiveEditor['sessionId']);
+      final liveSessionId = _asString(contextLiveEditor['editorSessionId']) ??
+          _asString(contextLiveEditor['sessionId']);
       final pendingCommandsResponse = await _fetchPendingCommands(
         projectId: effectiveProjectId,
         compositionId: effectiveCompositionId,
@@ -530,7 +532,7 @@ class RefusionMcpCloudBridge {
       arguments: <String, Object?>{
         'projectId': projectId,
         'compositionId': compositionId,
-        if (liveSessionId != null) 'appSessionId': liveSessionId,
+        if (liveSessionId != null) 'editorSessionId': liveSessionId,
         'markReceived': true,
         'limit': 40,
       },
