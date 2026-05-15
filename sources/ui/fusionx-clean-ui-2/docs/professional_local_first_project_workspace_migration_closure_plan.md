@@ -1,10 +1,105 @@
 # Professional Local-First Project Workspace Migration Closure Plan
 
-Status: official execution plan  
+Status: official execution plan, execution in progress
 Short name: `PLFPW-MCP`  
 Date: 2026-05-16  
 Package: `com.refusion.app`  
 Branch context: `codex/unified-keyframe-ops-foundation-20260426`
+
+---
+
+## Current Execution State - 2026-05-16
+
+This section is the canonical continuation point for the current build. It
+records what has already been closed and what must happen next. Any agent
+continuing this plan must start here before reading later phases.
+
+### Closed Checkpoints
+
+The following checkpoints are already completed and pushed:
+
+```text
+022ba96e checkpoint: add plfpw-00 current truth audit
+33393de9 checkpoint: fail closed mcp composition identity placeholders
+8f422de6 checkpoint: harden json-rpc session identity fail-closed
+fe1b5854 checkpoint: harden cloud bridge identity placeholders
+```
+
+### What Is Closed
+
+These items are now closed for the current migration slice:
+
+```text
+PLFPW-00 audit document exists.
+MCP composition spec no longer reports placeholder identities as active truth.
+JSON-RPC session/open rejects placeholder project/composition identities.
+JSON-RPC tools/call does not silently create fake active sessions.
+Cloud bridge treats active/comp_1/active-composition as invalid local identity.
+Cloud bridge placeholder local context bootstraps from real remote context only.
+Focused MCP and cloud bridge tests pass for the identity hardening slice.
+```
+
+### What Is Not Yet Closed
+
+These are still open and must not be claimed complete:
+
+```text
+ProjectWorkspaceV1 is not yet the only create-composition source of truth.
+SceneContextSnapshotV1 resources are not yet complete.
+CanonicalCreativeTransactionV1 is not yet the only write surface.
+Manual UI, MCP, Script, Template, and Import are not yet fully cut over.
+Supabase is not yet fully converted to relay/mirror/history.
+RendererProofV1 is not yet the only appApplied success gate.
+Legacy remote layer handlers still exist and must be converted or blocked.
+File-backed Live Runtime is not yet implemented; it is a future layer.
+```
+
+### Current Verification Baseline
+
+The latest closed slice was verified with:
+
+```text
+flutter test test/mcp
+flutter test test/presentation_services/refusion_mcp_cloud_bridge_fast_apply_test.dart
+flutter test test/local_mcp_transaction_api_test.dart
+flutter test test/presentation_services/professional_scene_apply_proof_evaluator_test.dart
+flutter test test/presentation_services/mcp_text_layer_resolution_test.dart
+dart analyze on the modified files
+```
+
+The build was installed on:
+
+```text
+Device: ELN2-W29
+IP/port at latest install: 192.168.0.199:39407
+Package: com.refusion.app
+Version: 1.0.0-beta.11
+Latest observed install time: 2026-05-16 00:46:37
+```
+
+### Immediate Next Slice
+
+The next implementation slice is:
+
+```text
+PLFPW-01B - ProjectWorkspace Identity Finalization And Runtime Adoption
+```
+
+It must connect create-composition runtime state to a real
+`ProjectWorkspaceV1` and prevent any live app context from existing without:
+
+```text
+projectId
+compositionId
+workspaceId
+compositionProfile
+revision
+canonical graph
+timeline graph
+proof ledger
+```
+
+No new feature work should start before this slice closes.
 
 ---
 
@@ -52,6 +147,72 @@ Cloud is not the live editor. Cloud is relay, mirror, asset storage, transaction
 history, and recovery.
 
 The open app is the live editor.
+
+### 0.1 Future Destination: File-Backed Live Runtime
+
+After the local-first transaction spine is closed, ReFusionXx must evolve into a
+file-backed live project runtime comparable to how Remotion/HyperFrames work
+with Codex or Claude.
+
+This future layer is not a replacement for the current migration. It depends on
+the current migration being correct.
+
+The final destination is:
+
+```text
+Agent reads/edits official project files
+-> app watches project file changes
+-> compiler validates and lowers files into canonical graph/timeline
+-> local apply engine updates canvas/player immediately
+-> export uses the same files and graph
+-> renderer proof confirms the visual result
+```
+
+Target project shape:
+
+```text
+MyProject.refusion/
+  manifest.json
+  composition.json
+  scene_context.md
+  layers/
+  motion/
+  effects/
+  timeline/
+  transactions/
+  proof/
+```
+
+The agent must not write arbitrary runtime state. It may write official
+transaction patches and, later, schema-validated project files. The app remains
+the authority for validation, locking, compilation, hot reload, renderer proof,
+and corruption prevention.
+
+The current plan must finish first because:
+
+```text
+fileChanged without local apply is still failure
+graphCompiled without timeline/canvas projection is still failure
+cloud row success without renderer proof is still failure
+```
+
+The file-backed runtime must be implemented later as:
+
+```text
+PLFPW-FB-00 - File-Backed Live Runtime Migration
+```
+
+It must inherit all hard rules from this plan:
+
+```text
+one identity model
+one transaction path
+one compiler/lowering path
+one graph/timeline/frame evaluator
+one preview/export renderer path
+one renderer proof system
+zero active legacy execution paths
+```
 
 ---
 
@@ -712,6 +873,12 @@ Complete legacy inventory exists.
 No unknown live write path remains unclassified.
 ```
 
+### Execution status
+
+```text
+Closed by checkpoint 022ba96e.
+```
+
 ---
 
 ## PLFPW-01 - Real Project Workspace Identity On Create Composition
@@ -785,6 +952,143 @@ Verify it starts clean.
 ### Exit gate
 
 No MCP or cloud call may report active composition unless a real workspace exists.
+
+### Execution status
+
+Partially closed by:
+
+```text
+33393de9 MCP composition tools fail closed on placeholder identities.
+8f422de6 JSON-RPC sessions/tools fail closed on placeholder identities.
+fe1b5854 Cloud bridge fails closed on placeholder identities.
+```
+
+The create-composition runtime still needs full `ProjectWorkspaceV1` adoption.
+That remaining work is split into `PLFPW-01B`.
+
+---
+
+## PLFPW-01B - ProjectWorkspace Identity Finalization And Runtime Adoption
+
+### Goal
+
+Finish the identity foundation started in `PLFPW-01` by making the open
+composition a real runtime workspace, not only a validated MCP context.
+
+After this slice, the app must not be able to enter editor mode with:
+
+```text
+projectId = active
+compositionId = comp_1
+workspaceId missing
+compositionProfile missing
+graph/timeline state detached from workspace identity
+```
+
+### Build
+
+Wire `Create Composition` and project restore into one runtime identity object:
+
+```text
+ProjectWorkspaceV1
+CompositionProfileV1
+WorkspaceRevisionState
+WorkspaceSessionState
+CanonicalCreativeGraph root
+MasterTimelineGraph root
+RendererProofLedger root
+```
+
+The active editor state must expose one authoritative object:
+
+```text
+ActiveProjectWorkspace
+```
+
+Required fields:
+
+```text
+projectId
+compositionId
+workspaceId
+revision
+compositionProfile.width
+compositionProfile.height
+compositionProfile.fps
+compositionProfile.durationMs
+compositionProfile.coordinateSystem
+compositionProfile.canvasBounds
+createdAt
+updatedAt
+```
+
+### Runtime Rules
+
+```text
+Create Story -> workspace profile must be 1080x1920.
+Create Square -> workspace profile must be 1080x1080.
+Create Landscape -> workspace profile must be 1920x1080.
+MCP context must mirror active workspace identity only.
+Manual UI must read active workspace identity only.
+Canvas must size from active workspace compositionProfile only.
+Timeline must project from active workspace graph only.
+```
+
+### LegacyPathCleanupRecord
+
+This slice must classify and close these legacy patterns:
+
+```text
+active project fallback -> blockWithError
+comp_1 composition fallback -> blockWithError
+active-composition fallback -> blockWithError
+motion-project identity fallback -> blockWithError
+scene-main default as runtime root -> convertToAdapter only for tests/import
+format/preset state detached from workspace -> convertToAdapter
+canvas size inferred from payload -> blockWithError for MCP/Script/Template
+```
+
+### Tests
+
+Add or harden tests for:
+
+```text
+Create Story creates real workspace ids and 1080x1920 profile.
+Create Square creates different workspace ids and 1080x1080 profile.
+Switching composition clears prior graph/timeline/proof state.
+MCP get_composition_spec returns inactive when workspace missing.
+MCP get_composition_spec returns real workspace ids when workspace exists.
+Cloud bridge never reports placeholders as active composition.
+Manual Add Solid reads workspace profile, not payload dimensions.
+```
+
+### Device Validation
+
+On the connected Android device:
+
+```text
+Install build.
+Create Story.
+Open pairing/context diagnostics.
+Verify active workspace ids are real.
+Verify canvas profile is Story 1080x1920.
+Add manual solid.
+Verify solid is inside selected canvas frame.
+Ask MCP to read context.
+Verify MCP reports the same projectId/compositionId/profile.
+```
+
+### Exit Gate
+
+This slice is not closed until:
+
+```text
+No live editor context can exist without ActiveProjectWorkspace.
+No active MCP context can be published from placeholder ids.
+No canvas size can be inferred from MCP layer payload.
+Device validation confirms Story profile survives Manual and MCP context reads.
+Focused checkpoint is committed and pushed.
+```
 
 ---
 
@@ -1747,4 +2051,3 @@ after local apply, and no old execution path can claim success independently.
 ```
 
 If that statement is false, the migration is not done.
-
