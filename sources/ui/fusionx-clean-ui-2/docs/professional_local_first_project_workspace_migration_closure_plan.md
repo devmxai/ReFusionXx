@@ -25,6 +25,7 @@ The following checkpoints are already completed and pushed:
 fe1b5854 checkpoint: harden cloud bridge identity placeholders
 b2f97087 checkpoint: finalize workspace identity runtime adoption core
 0b952848 checkpoint: enforce workspace identity gate for active mcp context
+0e4884e6 checkpoint: add scene context virtual project resources
 ```
 
 ### What Is Closed
@@ -43,6 +44,9 @@ ProjectWorkspaceV1 model is now wired into create/open/bootstrap runtime paths.
 MCP cloud context now publishes active composition only when runtime workspace identity is valid.
 Cloud bridge now requires valid workspace identity to publish active MCP context.
 Toolkit active context now fails closed on placeholders and reports workspace identity when valid.
+Scene context snapshot tools are now wired (`get_scene_context`, `list_project_resources`, `get_project_resource`).
+Virtual project resources now expose read-only context payloads for agent awareness.
+Proof resource payload is explicitly read-only and cannot be interpreted as app-apply proof.
 ```
 
 ### What Is Not Yet Closed
@@ -52,6 +56,7 @@ These are still open and must not be claimed complete:
 ```text
 ProjectWorkspaceV1 is not yet the only create-composition source of truth.
 SceneContextSnapshotV1 resources are not yet complete.
+SceneContextSnapshotV1 resources exist, but transaction-led revision/diff semantics are not yet finalized.
 CanonicalCreativeTransactionV1 is not yet the only write surface.
 Manual UI, MCP, Script, Template, and Import are not yet fully cut over.
 Supabase is not yet fully converted to relay/mirror/history.
@@ -88,7 +93,7 @@ Latest observed install time: 2026-05-16 00:46:37
 The next implementation slice is:
 
 ```text
-PLFPW-01B - ProjectWorkspace Identity Finalization And Runtime Adoption
+PLFPW-03 - Canonical Creative Transaction Schema And Validator
 ```
 
 It must connect create-composition runtime state to a real
