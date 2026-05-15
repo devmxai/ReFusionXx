@@ -86,13 +86,14 @@ void main() {
       addTearDown(bridge.stop);
 
       await bridge.syncNow();
-      final layersCallsAfterFirstSync = server.callCount('get_layers');
+      final sceneContextCallsAfterFirstSync =
+          server.callCount('get_scene_context');
 
       await bridge.syncNow();
 
       expect(
-        server.callCount('get_layers'),
-        greaterThan(layersCallsAfterFirstSync),
+        server.callCount('get_scene_context'),
+        greaterThan(sceneContextCallsAfterFirstSync),
         reason:
             'second fast sync should run even while diagnostics are running',
       );
@@ -298,7 +299,7 @@ void main() {
         await bridge.syncNow();
 
         expect(server.callCount('sync_editor_layers'), 0);
-        expect(server.callCount('get_layers'), greaterThan(0));
+        expect(server.callCount('get_scene_context'), greaterThan(0));
         expect(snapshots, isNotEmpty);
         expect(snapshots.first.projectId, 'project-1');
         expect(snapshots.first.compositionId, 'composition-1');
@@ -336,7 +337,7 @@ void main() {
         await bridge.syncNow();
 
         expect(server.callCount('sync_editor_layers'), 0);
-        expect(server.callCount('get_layers'), greaterThan(0));
+        expect(server.callCount('get_scene_context'), greaterThan(0));
         expect(snapshots, isNotEmpty);
         expect(snapshots.first.projectId, 'project-1');
         expect(snapshots.first.compositionId, 'composition-1');
@@ -371,7 +372,7 @@ void main() {
 
         await bridge.syncNow();
 
-        expect(server.callCount('get_layers'), 0);
+        expect(server.callCount('get_scene_context'), 0);
         expect(server.callCount('sync_editor_layers'), 0);
         expect(snapshots, isNotEmpty);
         expect(snapshots.first.projectId, isEmpty);
@@ -662,6 +663,21 @@ class _FakeMcpServer {
           'layers': const <Map<String, Object?>>[
             <String, Object?>{'id': 'layer-1', 'layer_kind': 'solid'},
           ],
+        };
+      case 'get_scene_context':
+        return <String, Object?>{
+          'schemaVersion': 'SceneContextSnapshotV1',
+          'projectId': activeProjectId,
+          'compositionId': activeCompositionId,
+          'revision': 3,
+          'snapshot': <String, Object?>{
+            'projectSnapshot': <String, Object?>{
+              'revision': 3,
+              'layers': const <Map<String, Object?>>[
+                <String, Object?>{'id': 'layer-1', 'layer_kind': 'solid'},
+              ],
+            },
+          },
         };
       case 'get_motion_channels':
         return <String, Object?>{

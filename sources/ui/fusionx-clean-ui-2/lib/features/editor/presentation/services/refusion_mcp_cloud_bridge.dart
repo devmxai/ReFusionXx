@@ -396,22 +396,29 @@ class RefusionMcpCloudBridge {
             if (pendingCommandTargetLayerIds.isNotEmpty)
               'layerIds': pendingCommandTargetLayerIds,
           };
-          final results = await Future.wait<Map<String, Object?>?>([
-            _safeCallTool(
+          final sceneContextResponse = await _safeCallTool(
+            toolName: 'get_scene_context',
+            arguments: layerReadArgs,
+            allowAgentSessionToken: true,
+            softTimeout: _fastApplySoftTimeout,
+          );
+          layersResponse =
+              _layersToolResultFromSceneContext(sceneContextResponse);
+          final motionChannelsFuture = _safeCallTool(
+            toolName: 'get_motion_channels',
+            arguments: layerReadArgs,
+            allowAgentSessionToken: true,
+            softTimeout: _fastApplySoftTimeout,
+          );
+          if (layersResponse == null) {
+            layersResponse = await _safeCallTool(
               toolName: 'get_layers',
               arguments: layerReadArgs,
               allowAgentSessionToken: true,
               softTimeout: _fastApplySoftTimeout,
-            ),
-            _safeCallTool(
-              toolName: 'get_motion_channels',
-              arguments: layerReadArgs,
-              allowAgentSessionToken: true,
-              softTimeout: _fastApplySoftTimeout,
-            ),
-          ]);
-          layersResponse = results[0];
-          motionChannelsResponse = results[1];
+            );
+          }
+          motionChannelsResponse = await motionChannelsFuture;
         }
         _emitSnapshot(
           _snapshotFromContextResponse(
@@ -478,22 +485,30 @@ class RefusionMcpCloudBridge {
         if (pendingCommandTargetLayerIds.isNotEmpty)
           'layerIds': pendingCommandTargetLayerIds,
       };
-      final results = await Future.wait<Map<String, Object?>?>([
-        _safeCallTool(
+      final sceneContextResponse = await _safeCallTool(
+        toolName: 'get_scene_context',
+        arguments: layerReadArgs,
+        allowAgentSessionToken: true,
+        softTimeout: _fastApplySoftTimeout,
+      );
+      var layersResponse = _layersToolResultFromSceneContext(
+        sceneContextResponse,
+      );
+      final motionChannelsFuture = _safeCallTool(
+        toolName: 'get_motion_channels',
+        arguments: layerReadArgs,
+        allowAgentSessionToken: true,
+        softTimeout: _fastApplySoftTimeout,
+      );
+      if (layersResponse == null) {
+        layersResponse = await _safeCallTool(
           toolName: 'get_layers',
           arguments: layerReadArgs,
           allowAgentSessionToken: true,
           softTimeout: _fastApplySoftTimeout,
-        ),
-        _safeCallTool(
-          toolName: 'get_motion_channels',
-          arguments: layerReadArgs,
-          allowAgentSessionToken: true,
-          softTimeout: _fastApplySoftTimeout,
-        ),
-      ]);
-      final layersResponse = results[0];
-      final motionChannelsResponse = results[1];
+        );
+      }
+      final motionChannelsResponse = await motionChannelsFuture;
       _emitSnapshot(
         _snapshotFromContextResponse(
           contextResponse,
@@ -763,6 +778,38 @@ class RefusionMcpCloudBridge {
         'payload': payload,
       },
     };
+  }
+
+  Map<String, Object?>? _layersToolResultFromSceneContext(
+    Map<String, Object?>? sceneContextResult,
+  ) {
+    if (sceneContextResult == null) {
+      return null;
+    }
+    final structured = _asMap(sceneContextResult['structuredContent']);
+    if (structured['ok'] != true) {
+      return null;
+    }
+    final payload = _asMap(structured['payload']);
+    if (payload.isEmpty) {
+      return null;
+    }
+    final snapshot = _asMap(payload['snapshot']);
+    final projectSnapshot = _asMap(snapshot['projectSnapshot']);
+    final layers = _asListOfMap(projectSnapshot['layers']);
+    if (layers.isEmpty) {
+      return null;
+    }
+    return _toolResultFromPayload(
+      <String, Object?>{
+        'revision': _asInt(payload['revision']) ??
+            _asInt(projectSnapshot['revision']) ??
+            0,
+        'layers': layers,
+        'legacyReadOnly': true,
+        'source': 'scene_context',
+      },
+    );
   }
 
   List<String> _pendingCommandTargetLayerIds(
