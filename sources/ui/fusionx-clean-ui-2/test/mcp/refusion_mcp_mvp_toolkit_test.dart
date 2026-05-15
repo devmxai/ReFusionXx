@@ -74,6 +74,23 @@ void main() {
       expect(result.payload['projectId'], 'active');
     });
 
+    test('active context fails closed on placeholder identities', () {
+      final result = bus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_active_context',
+          capability: RefusionMcpCapability.projectRead,
+        ),
+        currentRevision: 7,
+      );
+      expect(result.ok, isTrue);
+      expect(result.payload['hasActiveComposition'], isFalse);
+      final project = result.payload['project'] as Map<String, Object?>;
+      final composition = result.payload['composition'] as Map<String, Object?>;
+      expect(project['id'], isEmpty);
+      expect(composition['id'], isEmpty);
+    });
+
     test('fails closed on composition identity placeholders', () {
       final result = bus.execute(
         session: session,
@@ -168,6 +185,50 @@ void main() {
       expect(spatialSnapshot.payload['primaryElementGeometry'], isNotNull);
       expect(spatialSnapshot.payload['timelineGraph'], isNotNull);
       expect(spatialSnapshot.payload['frameEvaluation'], isNotNull);
+    });
+
+    test('active context returns real workspace identity when available', () {
+      final toolBus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      final project = _sampleProject();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{
+            'projectId': project.id,
+            'compositionId': project.scenes.first.id,
+            'workspaceId': 'workspace-1',
+            'revision': 9,
+            'playheadMs': 500,
+          },
+          timelineSummaryReader: () => <String, Object?>{'rows': 1},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{},
+          projectReader: () => project,
+        ),
+      );
+
+      final result = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_active_context',
+          capability: RefusionMcpCapability.projectRead,
+        ),
+        currentRevision: 9,
+      );
+
+      expect(result.ok, isTrue);
+      expect(result.payload['hasActiveComposition'], isTrue);
+      final projectPayload = result.payload['project'] as Map<String, Object?>;
+      final compositionPayload =
+          result.payload['composition'] as Map<String, Object?>;
+      final workspacePayload =
+          result.payload['workspace'] as Map<String, Object?>;
+      final liveEditor = result.payload['liveEditor'] as Map<String, Object?>;
+      expect(projectPayload['id'], project.id);
+      expect(compositionPayload['id'], project.scenes.first.id);
+      expect(workspacePayload['id'], 'workspace-1');
+      expect(liveEditor['workspaceId'], 'workspace-1');
     });
 
     test('returns preview resource uri', () {

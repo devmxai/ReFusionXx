@@ -151,30 +151,39 @@ class RefusionMcpMvpToolkit {
       handler: (_) {
         final projectState = config.projectStateReader();
         final projectId =
-            (projectState['projectId'] as String?)?.trim().isNotEmpty == true
-                ? projectState['projectId'] as String
-                : 'active';
+            _normalizedProjectIdentity(_readString(projectState['projectId']));
+        final compositionId = _normalizedCompositionIdentity(
+          _readString(projectState['compositionId']),
+        );
+        final hasActiveComposition = projectId != null && compositionId != null;
         final revision = projectState['revision'] is num
             ? (projectState['revision'] as num).round()
             : 0;
+        final workspaceId = _readString(projectState['workspaceId']) ?? '';
         return RefusionMcpCommandHandlingOutcome(
           summary: 'Active context loaded.',
           payload: <String, Object?>{
+            'hasProject': hasActiveComposition,
+            'hasActiveComposition': hasActiveComposition,
             'project': <String, Object?>{
-              'id': projectId,
+              'id': projectId ?? '',
               'name': projectState['projectName'] ?? 'Active Project',
               'revision': revision,
             },
             'composition': <String, Object?>{
-              'id': projectState['compositionId'] ?? 'active-composition',
+              'id': compositionId ?? '',
               'name': projectState['compositionName'] ?? 'Composition 1',
+            },
+            'workspace': <String, Object?>{
+              'id': workspaceId,
             },
             'timeline': <String, Object?>{
               'id': projectState['timelineId'] ?? 'main',
               'playheadMs': projectState['playheadMs'] ?? 0,
             },
-            'liveEditor': const <String, Object?>{
+            'liveEditor': <String, Object?>{
               'online': true,
+              if (workspaceId.isNotEmpty) 'workspaceId': workspaceId,
             },
           },
         );
@@ -742,12 +751,14 @@ Map<String, Object?> _buildCompositionSpecPayload(
 ) {
   final state = config.projectStateReader();
   final project = config.projectReader?.call();
-  final stateProjectId = _normalizedProjectIdentity(_readString(state['projectId']));
+  final stateProjectId =
+      _normalizedProjectIdentity(_readString(state['projectId']));
   final stateCompositionId =
       _normalizedCompositionIdentity(_readString(state['compositionId']));
   final projectId = _normalizedProjectIdentity(project?.id) ?? stateProjectId;
-  final compositionId = _normalizedCompositionIdentity(_firstScene(project)?.id) ??
-      stateCompositionId;
+  final compositionId =
+      _normalizedCompositionIdentity(_firstScene(project)?.id) ??
+          stateCompositionId;
   final hasActiveComposition = projectId != null && compositionId != null;
   final canvasSize = project?.format.canvasSize;
   final canvasWidth = canvasSize?.width.round() ??

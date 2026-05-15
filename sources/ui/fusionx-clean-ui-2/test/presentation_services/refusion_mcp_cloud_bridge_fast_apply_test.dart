@@ -22,6 +22,7 @@ void main() {
           contextReader: () => const RefusionMcpCloudContextState(
             projectId: 'project-1',
             compositionId: 'composition-1',
+            workspaceId: 'workspace-1',
             playheadMs: 1200,
             timelineRevision: 2,
             foreground: true,
@@ -73,6 +74,7 @@ void main() {
         contextReader: () => const RefusionMcpCloudContextState(
           projectId: 'project-1',
           compositionId: 'composition-1',
+          workspaceId: 'workspace-1',
           playheadMs: 1800,
           timelineRevision: 3,
           foreground: true,
@@ -112,6 +114,7 @@ void main() {
           contextReader: () => const RefusionMcpCloudContextState(
             projectId: 'project-1',
             compositionId: 'composition-1',
+            workspaceId: 'workspace-1',
             playheadMs: 1600,
             timelineRevision: 6,
             foreground: true,
@@ -155,6 +158,7 @@ void main() {
           contextReader: () => const RefusionMcpCloudContextState(
             projectId: 'project-1',
             compositionId: 'composition-1',
+            workspaceId: 'workspace-1',
             playheadMs: 1200,
             timelineRevision: 2,
             foreground: true,
@@ -205,6 +209,7 @@ void main() {
           contextReader: () => const RefusionMcpCloudContextState(
             projectId: 'project-1',
             compositionId: 'composition-1',
+            workspaceId: 'workspace-1',
             playheadMs: 1200,
             timelineRevision: 2,
             foreground: true,
@@ -244,6 +249,7 @@ void main() {
           contextReader: () => const RefusionMcpCloudContextState(
             projectId: 'project-1',
             compositionId: 'composition-1',
+            workspaceId: 'workspace-1',
             playheadMs: 1600,
             timelineRevision: 6,
             foreground: true,
@@ -373,6 +379,76 @@ void main() {
         expect(snapshots.first.remoteLayers, isEmpty);
       },
     );
+
+    test(
+      'project/composition without workspaceId fail closed as inactive context',
+      () async {
+        final server = await _FakeMcpServer.start(
+          diagnosticsDelay: const Duration(milliseconds: 20),
+        );
+        addTearDown(server.close);
+
+        final bridge = RefusionMcpCloudBridge(
+          endpoint: server.endpoint,
+          deviceId: 'test-device',
+          contextReader: () => const RefusionMcpCloudContextState(
+            projectId: 'project-1',
+            compositionId: 'composition-1',
+            playheadMs: 0,
+            timelineRevision: 1,
+            foreground: true,
+          ),
+          onSnapshot: (_) {},
+          interval: const Duration(seconds: 60),
+          connectTimeout: const Duration(seconds: 2),
+        );
+        addTearDown(bridge.stop);
+
+        await bridge.syncNow();
+
+        final touchArgs = server.lastArgs('touch_editor_session');
+        final contextArgs = server.lastArgs('set_active_context');
+        expect(touchArgs?['hasActiveComposition'], isFalse);
+        expect(contextArgs?['hasActiveComposition'], isFalse);
+        expect(server.callCount('sync_editor_layers'), 0);
+      },
+    );
+
+    test(
+      'active context publishes workspaceId when identity is valid',
+      () async {
+        final server = await _FakeMcpServer.start(
+          diagnosticsDelay: const Duration(milliseconds: 20),
+        );
+        addTearDown(server.close);
+
+        final bridge = RefusionMcpCloudBridge(
+          endpoint: server.endpoint,
+          deviceId: 'test-device',
+          contextReader: () => const RefusionMcpCloudContextState(
+            projectId: 'project-1',
+            compositionId: 'composition-1',
+            workspaceId: 'workspace-1',
+            playheadMs: 1200,
+            timelineRevision: 2,
+            foreground: true,
+          ),
+          onSnapshot: (_) {},
+          interval: const Duration(seconds: 60),
+          connectTimeout: const Duration(seconds: 2),
+        );
+        addTearDown(bridge.stop);
+
+        await bridge.syncNow();
+
+        final touchArgs = server.lastArgs('touch_editor_session');
+        final contextArgs = server.lastArgs('set_active_context');
+        expect(touchArgs?['hasActiveComposition'], isTrue);
+        expect(contextArgs?['hasActiveComposition'], isTrue);
+        expect(touchArgs?['workspaceId'], 'workspace-1');
+        expect(contextArgs?['workspaceId'], 'workspace-1');
+      },
+    );
   });
 }
 
@@ -414,6 +490,8 @@ class _FakeMcpServer {
   final bool includePendingCommand;
   final bool scopedPendingEmptyButUnscopedHasCommand;
   final Map<String, int> _counts = <String, int>{};
+  final Map<String, Map<String, Object?>> _lastArgsByTool =
+      <String, Map<String, Object?>>{};
 
   static Future<_FakeMcpServer> start({
     required Duration diagnosticsDelay,
@@ -448,6 +526,8 @@ class _FakeMcpServer {
 
   int callCount(String toolName) => _counts[toolName] ?? 0;
 
+  Map<String, Object?>? lastArgs(String toolName) => _lastArgsByTool[toolName];
+
   Future<void> close() async {
     await server.close(force: true);
   }
@@ -475,6 +555,7 @@ class _FakeMcpServer {
 
         final args = (params['arguments'] as Map<String, Object?>?) ??
             const <String, Object?>{};
+        _lastArgsByTool[toolName] = Map<String, Object?>.unmodifiable(args);
         final payload = _payloadForTool(toolName, args: args);
         final response = <String, Object?>{
           'jsonrpc': '2.0',

@@ -19,6 +19,7 @@ class RefusionMcpCloudContextState {
     this.canvasHeight,
     this.durationMs,
     this.fps,
+    this.workspaceId,
     this.coordinateSystem = 'center-origin',
     this.origin = 'center',
   });
@@ -34,6 +35,7 @@ class RefusionMcpCloudContextState {
   final int? canvasHeight;
   final int? durationMs;
   final int? fps;
+  final String? workspaceId;
   final String coordinateSystem;
   final String origin;
 }
@@ -308,8 +310,11 @@ class RefusionMcpCloudBridge {
       final projectIdArg = _normalizedProjectIdentifierOrNull(state.projectId);
       final compositionIdArg =
           _normalizedCompositionIdentifierOrNull(state.compositionId);
-      final hasActiveComposition =
-          projectIdArg != null && compositionIdArg != null;
+      final workspaceIdArg =
+          _normalizedWorkspaceIdentifierOrNull(state.workspaceId);
+      final hasActiveComposition = projectIdArg != null &&
+          compositionIdArg != null &&
+          workspaceIdArg != null;
       _fireAndForgetTool(
         toolName: 'touch_editor_session',
         arguments: <String, Object?>{
@@ -317,6 +322,7 @@ class RefusionMcpCloudBridge {
           'hasActiveComposition': hasActiveComposition,
           if (projectIdArg != null) 'projectId': projectIdArg,
           if (compositionIdArg != null) 'compositionId': compositionIdArg,
+          if (workspaceIdArg != null) 'workspaceId': workspaceIdArg,
           'timelineRevision': state.timelineRevision,
           'foreground': _foreground && state.foreground,
           'status': status,
@@ -330,6 +336,7 @@ class RefusionMcpCloudBridge {
           'hasActiveComposition': hasActiveComposition,
           if (projectIdArg != null) 'projectId': projectIdArg,
           if (compositionIdArg != null) 'compositionId': compositionIdArg,
+          if (workspaceIdArg != null) 'workspaceId': workspaceIdArg,
           'timelineId': state.timelineId,
           'playheadMs': state.playheadMs,
           'timelineRevision': state.timelineRevision,
@@ -1070,6 +1077,10 @@ class RefusionMcpCloudBridge {
             'online': _foreground && state.foreground,
             'deviceId': _deviceId,
             'foreground': _foreground && state.foreground,
+            if (_normalizedWorkspaceIdentifierOrNull(state.workspaceId) != null)
+              'workspaceId': _normalizedWorkspaceIdentifierOrNull(
+                state.workspaceId,
+              ),
           },
         },
       },
@@ -1118,8 +1129,11 @@ class RefusionMcpCloudBridge {
     final projectIdArg = _normalizedProjectIdentifierOrNull(state.projectId);
     final compositionIdArg =
         _normalizedCompositionIdentifierOrNull(state.compositionId);
-    final hasActiveComposition =
-        projectIdArg != null && compositionIdArg != null;
+    final workspaceIdArg =
+        _normalizedWorkspaceIdentifierOrNull(state.workspaceId);
+    final hasActiveComposition = projectIdArg != null &&
+        compositionIdArg != null &&
+        workspaceIdArg != null;
     final response = await _callTool(
       toolName: 'generate_pairing_code',
       arguments: <String, Object?>{
@@ -1127,6 +1141,7 @@ class RefusionMcpCloudBridge {
         'hasActiveComposition': hasActiveComposition,
         if (projectIdArg != null) 'projectId': projectIdArg,
         if (compositionIdArg != null) 'compositionId': compositionIdArg,
+        if (workspaceIdArg != null) 'workspaceId': workspaceIdArg,
         'timelineId': state.timelineId,
         'playheadMs': state.playheadMs,
         'timelineRevision': state.timelineRevision,
@@ -1394,6 +1409,27 @@ String? _normalizedCompositionIdentifierOrNull(String? value) {
     'comp_1',
     'main',
     'default',
+  }.contains(lower)) {
+    return null;
+  }
+  return normalized;
+}
+
+String? _normalizedWorkspaceIdentifierOrNull(String? value) {
+  if (value == null) {
+    return null;
+  }
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return null;
+  }
+  final lower = normalized.toLowerCase();
+  if (const <String>{
+    'active',
+    'default',
+    'workspace',
+    'workspace-main',
+    'main',
   }.contains(lower)) {
     return null;
   }

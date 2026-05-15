@@ -1384,6 +1384,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         canvasHeight: null,
         durationMs: null,
         fps: null,
+        workspaceId: null,
         coordinateSystem: 'center-origin',
         origin: 'center',
       );
@@ -1403,6 +1404,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       canvasHeight: profile.height,
       durationMs: profile.durationMs,
       fps: profile.fps,
+      workspaceId: workspace.workspaceId,
       coordinateSystem: profile.coordinateSystem,
       origin: profile.origin,
     );
