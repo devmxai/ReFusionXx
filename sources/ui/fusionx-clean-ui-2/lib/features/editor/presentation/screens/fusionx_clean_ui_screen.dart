@@ -1465,6 +1465,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return;
       }
       final hasPendingCommands = snapshot.pendingCommands.isNotEmpty;
+      final effectiveRemoteRevision = snapshot.remoteRevision ??
+          _maxPendingCommandRevision(snapshot.pendingCommands);
       final pendingCommandRemoteLayers =
           const McpPendingCommandLayerMaterializer().materialize(
         snapshot.pendingCommands,
@@ -1477,7 +1479,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           _pendingCommandTargetLayerIds(snapshot.pendingCommands);
       final useRecoverySync = _shouldRunMcpRecoverySync(
         hasPendingCommands: hasPendingCommands,
-        remoteRevision: snapshot.remoteRevision,
+        remoteRevision: effectiveRemoteRevision,
         remoteLayers: remoteLayers,
       );
       final remoteLayersForApply = hasPendingCommands
@@ -1497,14 +1499,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (remoteLayersForApply.isNotEmpty) {
         _applyRemoteLayersIfNeeded(
           remoteLayersForApply,
-          snapshot.remoteRevision,
+          effectiveRemoteRevision,
         );
       }
       if (remoteMotionChannelsForApply.isNotEmpty) {
         _applyRemoteMotionChannelsIfNeeded(
           remoteMotionChannelsForApply,
           remoteLayersForApply.isNotEmpty ? remoteLayersForApply : remoteLayers,
-          snapshot.remoteRevision,
+          effectiveRemoteRevision,
         );
       }
     }
@@ -1803,6 +1805,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return targetLayerIds;
+  }
+
+  int? _maxPendingCommandRevision(
+    List<Map<String, Object?>> pendingCommands,
+  ) {
+    int? maxRevision;
+    for (final command in pendingCommands) {
+      final revisionAfter = _remoteInt(command['revision_after']);
+      if (revisionAfter == null) {
+        continue;
+      }
+      if (maxRevision == null || revisionAfter > maxRevision) {
+        maxRevision = revisionAfter;
+      }
+    }
+    return maxRevision;
   }
 
   List<Map<String, Object?>> _mergePendingCommandRemoteLayers(

@@ -190,6 +190,7 @@ class RefusionMcpCloudBridge {
   final Duration interval;
   final Duration connectTimeout;
   static const Duration _fastApplySoftTimeout = Duration(milliseconds: 1500);
+  static const Duration _commandBusSoftTimeout = Duration(seconds: 7);
   static const Duration _diagnosticsSoftTimeout = Duration(milliseconds: 1800);
 
   Timer? _timer;
@@ -527,6 +528,10 @@ class RefusionMcpCloudBridge {
     required String? liveSessionId,
     required Duration softTimeout,
   }) async {
+    final commandBusTimeout =
+        softTimeout.inMilliseconds > _commandBusSoftTimeout.inMilliseconds
+            ? softTimeout
+            : _commandBusSoftTimeout;
     var pendingCommandsResponse = await _safeCallTool(
       toolName: 'get_pending_commands',
       arguments: <String, Object?>{
@@ -536,7 +541,7 @@ class RefusionMcpCloudBridge {
         'markReceived': true,
         'limit': 40,
       },
-      softTimeout: softTimeout,
+      softTimeout: commandBusTimeout,
     );
     var pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
       pendingCommandsResponse,
@@ -552,7 +557,7 @@ class RefusionMcpCloudBridge {
         'markReceived': true,
         'limit': 40,
       },
-      softTimeout: softTimeout,
+      softTimeout: commandBusTimeout,
     );
     final unscopedPendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
       unscopedPendingCommandsResponse,

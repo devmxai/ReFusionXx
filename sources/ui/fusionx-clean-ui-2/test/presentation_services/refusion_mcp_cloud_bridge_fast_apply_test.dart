@@ -139,6 +139,57 @@ void main() {
     );
 
     test(
+      'fast sync waits for pending command bus instead of losing appReceived commands',
+      () async {
+        final server = await _FakeMcpServer.start(
+          diagnosticsDelay: const Duration(milliseconds: 20),
+          pendingCommandsDelay: const Duration(milliseconds: 1900),
+          includePendingCommand: true,
+        );
+        addTearDown(server.close);
+
+        final snapshots = <RefusionMcpCloudBridgeSnapshot>[];
+        final bridge = RefusionMcpCloudBridge(
+          endpoint: server.endpoint,
+          deviceId: 'test-device',
+          contextReader: () => const RefusionMcpCloudContextState(
+            projectId: 'project-1',
+            compositionId: 'composition-1',
+            playheadMs: 1200,
+            timelineRevision: 2,
+            foreground: true,
+            canvasWidth: 1080,
+            canvasHeight: 1920,
+            durationMs: 8000,
+            fps: 30,
+          ),
+          onSnapshot: snapshots.add,
+          interval: const Duration(seconds: 60),
+          connectTimeout: const Duration(seconds: 8),
+        );
+        addTearDown(bridge.stop);
+
+        await bridge.syncNow();
+
+        expect(
+          server.callCount('get_pending_commands'),
+          greaterThan(0),
+          reason: 'pending command bus must be queried during fast apply',
+        );
+        expect(snapshots, isNotEmpty);
+        expect(
+          snapshots.first.pendingCommands,
+          isNotEmpty,
+          reason:
+              'pending commands must reach the app snapshot even when the command bus is slower than diagnostics',
+        );
+        final commandPayload = snapshots.first.pendingCommands.single['payload']
+            as Map<String, Object?>;
+        expect(commandPayload['layerId'], 'solid-layer-1');
+      },
+    );
+
+    test(
       'fast sync preserves scoped local identity when active context is stale',
       () async {
         final server = await _FakeMcpServer.start(
@@ -271,26 +322,32 @@ class _FakeMcpServer {
     required this.endpoint,
     required this.diagnosticsDelay,
     required this.contextDelay,
+    required this.pendingCommandsDelay,
     required this.activeProjectId,
     required this.activeCompositionId,
     required this.liveOnline,
+    required this.includePendingCommand,
   });
 
   final HttpServer server;
   final Uri endpoint;
   final Duration diagnosticsDelay;
   final Duration contextDelay;
+  final Duration pendingCommandsDelay;
   final String activeProjectId;
   final String activeCompositionId;
   final bool liveOnline;
+  final bool includePendingCommand;
   final Map<String, int> _counts = <String, int>{};
 
   static Future<_FakeMcpServer> start({
     required Duration diagnosticsDelay,
     Duration contextDelay = Duration.zero,
+    Duration pendingCommandsDelay = Duration.zero,
     String activeProjectId = 'project-1',
     String activeCompositionId = 'composition-1',
     bool liveOnline = true,
+    bool includePendingCommand = false,
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final endpoint = Uri.parse(
@@ -301,9 +358,11 @@ class _FakeMcpServer {
       endpoint: endpoint,
       diagnosticsDelay: diagnosticsDelay,
       contextDelay: contextDelay,
+      pendingCommandsDelay: pendingCommandsDelay,
       activeProjectId: activeProjectId,
       activeCompositionId: activeCompositionId,
       liveOnline: liveOnline,
+      includePendingCommand: includePendingCommand,
     );
     fake._serve();
     return fake;
@@ -330,6 +389,10 @@ class _FakeMcpServer {
         }
         if (toolName == 'get_active_context' && contextDelay > Duration.zero) {
           await Future<void>.delayed(contextDelay);
+        }
+        if (toolName == 'get_pending_commands' &&
+            pendingCommandsDelay > Duration.zero) {
+          await Future<void>.delayed(pendingCommandsDelay);
         }
 
         final payload = _payloadForTool(toolName);
@@ -387,7 +450,23 @@ class _FakeMcpServer {
         };
       case 'get_pending_commands':
         return <String, Object?>{
-          'commands': const <Map<String, Object?>>[],
+          'commands': includePendingCommand
+              ? const <Map<String, Object?>>[
+                  <String, Object?>{
+                    'id': 'cmd-1',
+                    'command_type': 'refusion.insert_layer',
+                    'revision_after': 3,
+                    'status': 'running',
+                    'payload': <String, Object?>{
+                      'layerId': 'solid-layer-1',
+                      'layerKind': 'solid',
+                      'payload': <String, Object?>{
+                        'color': '#FFFFFF',
+                      },
+                    },
+                  },
+                ]
+              : const <Map<String, Object?>>[],
         };
       case 'get_layers':
         return <String, Object?>{
