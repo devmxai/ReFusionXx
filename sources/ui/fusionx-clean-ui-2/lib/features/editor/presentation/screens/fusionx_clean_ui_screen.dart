@@ -1457,7 +1457,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (snapshot.ok) {
       _captureMcpSpatialDiagnostics(snapshot);
       _refreshMcpPendingCommandLedger(snapshot.pendingCommands);
-      _failStaleMcpPendingCommandsIfNeeded(snapshot);
       if (_bootstrapMcpCompositionFromSnapshotIfNeeded(snapshot)) {
         _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
       }
@@ -1508,6 +1507,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           remoteLayersForApply.isNotEmpty ? remoteLayersForApply : remoteLayers,
           effectiveRemoteRevision,
         );
+      }
+      if (remoteLayersForApply.isEmpty &&
+          remoteMotionChannelsForApply.isEmpty) {
+        _failStaleMcpPendingCommandsIfNeeded(snapshot);
       }
     }
     if (!snapshot.ok && kDebugMode) {
@@ -3980,7 +3983,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           updates['font_size'],
         ]) ??
         64.0;
-    final absoluteX = _firstRemoteDouble(<Object?>[
+    final rawX = _firstRemoteDouble(<Object?>[
       nestedLayer['x'],
       payload['x'],
       payloadPayload['x'],
@@ -3989,6 +3992,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updatesPayload['x'],
       nestedPayloadProps['x'],
       updates['x'],
+    ]);
+    final rawY = _firstRemoteDouble(<Object?>[
+      nestedLayer['y'],
+      payload['y'],
+      payloadPayload['y'],
+      props['y'],
+      updateProps['y'],
+      updatesPayload['y'],
+      nestedPayloadProps['y'],
+      updates['y'],
+    ]);
+    final absoluteCenterX = _firstRemoteDouble(<Object?>[
       nestedLayer['centerX'],
       payload['centerX'],
       payloadPayload['centerX'],
@@ -3998,15 +4013,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       nestedPayloadProps['centerX'],
       updates['centerX'],
     ]);
-    final absoluteY = _firstRemoteDouble(<Object?>[
-      nestedLayer['y'],
-      payload['y'],
-      payloadPayload['y'],
-      props['y'],
-      updateProps['y'],
-      updatesPayload['y'],
-      nestedPayloadProps['y'],
-      updates['y'],
+    final absoluteCenterY = _firstRemoteDouble(<Object?>[
       nestedLayer['centerY'],
       payload['centerY'],
       payloadPayload['centerY'],
@@ -4016,10 +4023,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       nestedPayloadProps['centerY'],
       updates['centerY'],
     ]);
-    final positionX =
-        absoluteX == null ? 0.0 : absoluteX - (canvasSize.width / 2.0);
-    final positionY =
-        absoluteY == null ? 0.0 : absoluteY - (canvasSize.height / 2.0);
+    final coordinateSpace = _mcpRemoteCoordinateSpace(
+      remoteLayer: remoteLayer,
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+      nestedLayer: nestedLayer,
+      props: props,
+      updateProps: updateProps,
+      nestedPayloadProps: nestedPayloadProps,
+    );
+    final positionX = absoluteCenterX == null
+        ? _mcpCanonicalCoordinateFromRemoteValue(
+            rawX,
+            axisExtent: canvasSize.width,
+            coordinateSpace: coordinateSpace,
+          )
+        : absoluteCenterX - (canvasSize.width / 2.0);
+    final positionY = absoluteCenterY == null
+        ? _mcpCanonicalCoordinateFromRemoteValue(
+            rawY,
+            axisExtent: canvasSize.height,
+            coordinateSpace: coordinateSpace,
+          )
+        : absoluteCenterY - (canvasSize.height / 2.0);
     final colorArgb = _remoteColorArgb(
           _firstRemoteString(<Object?>[
             nestedLayer['color'],
@@ -4544,6 +4572,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     var didApply = false;
+    final appliedTargetLayerIds = <String>{};
+    var appliedChannelCount = 0;
     for (final channel in remoteMotionChannels) {
       final channelId = _remoteString(channel['id']);
       if (channelId == null || channelId.isEmpty) {
@@ -4555,15 +4585,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       if (_applyRemoteMotionChannel(channel)) {
         _appliedMcpMotionChannelSignatures[channelId] = signature;
+        final layerId = _remoteString(channel['layer_id']);
+        if (layerId != null && layerId.trim().isNotEmpty) {
+          appliedTargetLayerIds.add(layerId.trim());
+        }
+        appliedChannelCount += 1;
         didApply = true;
       }
     }
     if (didApply) {
       _mcpLatestApplyDidApply = true;
       _mcpLatestApplyHasRepresentedRemoteLayer = true;
-      _mcpLatestApplyProof = _mcpLatestApplyProof.copyWith(
+      _mcpLatestApplyProof = ProfessionalSceneApplyReceipt(
+        appliedCommandCount: appliedChannelCount,
+        appliedCommandTypes: const <String>['applyMotionChannel'],
+        receivedRemoteLayers: remoteLayers.length,
         appliedMotionChannels: _appliedMcpMotionChannelSignatures.length,
         lastAppliedMotionChannelsBatch: remoteMotionChannels.length,
+        operationApplied: 'motion',
+        createdLayerCount: 0,
+        updatedLayerCount: appliedTargetLayerIds.length,
+        targetLayerIds: appliedTargetLayerIds.toList(growable: false),
       );
       if (remoteRevision != null) {
         _acknowledgeMcpRemoteRevision(remoteRevision);
@@ -5878,6 +5920,89 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return null;
+  }
+
+  String _mcpRemoteCoordinateSpace({
+    required Map<String, Object?> remoteLayer,
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> payloadPayload,
+    required Map<String, Object?> updatesPayload,
+    required Map<String, Object?> nestedLayer,
+    required Map<String, Object?> props,
+    required Map<String, Object?> updateProps,
+    required Map<String, Object?> nestedPayloadProps,
+  }) {
+    return (_firstRemoteString(<Object?>[
+              nestedLayer['coordinateSpace'],
+              nestedLayer['coordinate_system'],
+              nestedLayer['coordinateSystem'],
+              nestedLayer['origin'],
+              payload['coordinateSpace'],
+              payload['coordinate_system'],
+              payload['coordinateSystem'],
+              payload['origin'],
+              payloadPayload['coordinateSpace'],
+              payloadPayload['coordinate_system'],
+              payloadPayload['coordinateSystem'],
+              payloadPayload['origin'],
+              props['coordinateSpace'],
+              props['coordinate_system'],
+              props['coordinateSystem'],
+              props['origin'],
+              updateProps['coordinateSpace'],
+              updateProps['coordinate_system'],
+              updateProps['coordinateSystem'],
+              updateProps['origin'],
+              updatesPayload['coordinateSpace'],
+              updatesPayload['coordinate_system'],
+              updatesPayload['coordinateSystem'],
+              updatesPayload['origin'],
+              nestedPayloadProps['coordinateSpace'],
+              nestedPayloadProps['coordinate_system'],
+              nestedPayloadProps['coordinateSystem'],
+              nestedPayloadProps['origin'],
+              updates['coordinateSpace'],
+              updates['coordinate_system'],
+              updates['coordinateSystem'],
+              updates['origin'],
+              remoteLayer['coordinateSpace'],
+              remoteLayer['coordinate_system'],
+              remoteLayer['coordinateSystem'],
+              remoteLayer['origin'],
+            ]) ??
+            'centerOrigin')
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '');
+  }
+
+  double _mcpCanonicalCoordinateFromRemoteValue(
+    double? value, {
+    required double axisExtent,
+    required String coordinateSpace,
+  }) {
+    if (value == null) {
+      return 0.0;
+    }
+    final halfExtent = axisExtent / 2.0;
+    final space = coordinateSpace.toLowerCase();
+    if (space.contains('topleft') ||
+        space.contains('absolute') ||
+        space.contains('css') ||
+        space.contains('canvaspixel')) {
+      return value - halfExtent;
+    }
+    if (space.contains('center')) {
+      return value;
+    }
+    // Legacy MCP payloads have historically mixed absolute `x/y` with the
+    // newer center-origin canvas contract. Values that fit inside the
+    // center-origin range are treated as canonical; larger positive values are
+    // interpreted as absolute canvas pixels for backward compatibility.
+    if (value.abs() <= halfExtent) {
+      return value;
+    }
+    return value - halfExtent;
   }
 
   int? _remoteInt(Object? value) {

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../domain/models/professional_motion_text_raster_models.dart';
 import '../../domain/models/professional_motion_text_render_models.dart';
 import '../../domain/models/professional_motion_text_models.dart';
+import 'preview_stage.dart';
 
 const int _motionTextLayoutCacheCapacity = 192;
 final LinkedHashMap<_TextLayoutCacheKey, _MeasuredTextLayout>
@@ -81,32 +82,50 @@ class MotionTextPreviewOverlay extends StatelessWidget {
     return IgnorePointer(
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final stageViewport = PreviewStageCanvasViewport.maybeOf(context);
+          final canvasRect = stageViewport?.canvasRect ??
+              Rect.fromLTWH(0, 0, constraints.maxWidth, constraints.maxHeight);
           final canvasWidth = rasterSnapshot.canvasSize.width <= 0
-              ? constraints.maxWidth
+              ? canvasRect.width
               : rasterSnapshot.canvasSize.width;
           final canvasHeight = rasterSnapshot.canvasSize.height <= 0
-              ? constraints.maxHeight
+              ? canvasRect.height
               : rasterSnapshot.canvasSize.height;
           final scaleX =
-              canvasWidth == 0 ? 1.0 : (constraints.maxWidth / canvasWidth);
+              canvasWidth == 0 ? 1.0 : (canvasRect.width / canvasWidth);
           final scaleY =
-              canvasHeight == 0 ? 1.0 : (constraints.maxHeight / canvasHeight);
+              canvasHeight == 0 ? 1.0 : (canvasRect.height / canvasHeight);
 
           return Stack(
             fit: StackFit.expand,
             children: [
-              for (final node in rasterSnapshot.nodes)
-                if (node.text.isNotEmpty && node.effects.opacity > 0)
-                  _MotionTextPreviewNodeWidget(
-                    key: ValueKey<String>(node.id),
-                    node: node,
-                    rasterContract: rasterSnapshot.contract,
-                    rasterizationPolicy: rasterSnapshot.rasterizationPolicy,
-                    scaleX: scaleX,
-                    scaleY: scaleY,
-                    viewportWidth: constraints.maxWidth,
-                    viewportHeight: constraints.maxHeight,
+              Positioned.fromRect(
+                rect: canvasRect,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(
+                    stageViewport?.canvasBorderRadius ?? 0,
                   ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.none,
+                    children: [
+                      for (final node in rasterSnapshot.nodes)
+                        if (node.text.isNotEmpty && node.effects.opacity > 0)
+                          _MotionTextPreviewNodeWidget(
+                            key: ValueKey<String>(node.id),
+                            node: node,
+                            rasterContract: rasterSnapshot.contract,
+                            rasterizationPolicy:
+                                rasterSnapshot.rasterizationPolicy,
+                            scaleX: scaleX,
+                            scaleY: scaleY,
+                            viewportWidth: canvasRect.width,
+                            viewportHeight: canvasRect.height,
+                          ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           );
         },

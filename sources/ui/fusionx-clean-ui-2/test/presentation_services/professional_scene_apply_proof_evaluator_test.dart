@@ -134,6 +134,35 @@ void main() {
       expect(proof['visualBoundsVerified'], isFalse);
     });
 
+    test('buildSuccessProof carries motion channel target proof', () {
+      const receipt = ProfessionalSceneApplyReceipt(
+        appliedCommandCount: 3,
+        appliedCommandTypes: <String>['applyMotionChannel'],
+        receivedRemoteLayers: 0,
+        appliedMotionChannels: 3,
+        lastAppliedMotionChannelsBatch: 3,
+        operationApplied: 'motion',
+        createdLayerCount: 0,
+        updatedLayerCount: 1,
+        targetLayerIds: <String>['remote-text-1'],
+      );
+
+      final proof = evaluator.buildSuccessProof(
+        receipt: receipt,
+        didApply: true,
+        hasRepresentedRemoteLayer: true,
+        proofFrameTimeMs: 120,
+        playerInvalidated: true,
+      );
+
+      expect(proof['operationApplied'], 'motion');
+      expect(proof['appliedMotionChannels'], 3);
+      expect(proof['lastAppliedMotionChannelsBatch'], 3);
+      expect(proof['targetLayerId'], 'remote-text-1');
+      expect(proof['targetLayerIds'], <String>['remote-text-1']);
+      expect(proof['updatedLayerCount'], 1);
+    });
+
     test('buildFailureProof returns hard fail proof contract', () {
       final proof = evaluator.buildFailureProof();
       expect(proof['dataApplied'], isFalse);
