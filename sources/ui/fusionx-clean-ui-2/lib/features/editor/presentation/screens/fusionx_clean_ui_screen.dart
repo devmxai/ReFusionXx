@@ -875,8 +875,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Map<String, DateTime> _mcpPendingCommandFirstSeenAtById =
       <String, DateTime>{};
   final Set<String> _mcpAcknowledgedCommandIds = <String>{};
-  String? _lastAdoptedMcpProjectId;
-  String? _lastAdoptedMcpCompositionId;
   Map<String, Object?> _mcpLatestCanvasMetadata = const <String, Object?>{};
   Map<String, Object?> _mcpLatestPrimaryElementGeometry =
       const <String, Object?>{};
@@ -1441,6 +1439,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!_isMcpSnapshotForActiveComposition(snapshot)) {
       if (_bootstrapMcpCompositionFromSnapshotIfNeeded(snapshot)) {
         _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
+      } else if (_adoptMcpCloudIdentityIfNeeded(snapshot)) {
+        _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
       } else {
         if (kDebugMode) {
           debugPrint(
@@ -1538,10 +1538,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         remoteCompositionId == _rootMotionSceneId) {
       return true;
     }
-    if (_lastAdoptedMcpProjectId == remoteProjectId &&
-        _lastAdoptedMcpCompositionId == remoteCompositionId) {
-      return true;
-    }
     final currentProject = _motionProject!;
     final currentScene = currentProject.scenes.first;
     final nextScenes = <MotionSceneModel>[
@@ -1555,8 +1551,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         id: remoteProjectId,
         scenes: List<MotionSceneModel>.unmodifiable(nextScenes),
       );
-      _lastAdoptedMcpProjectId = remoteProjectId;
-      _lastAdoptedMcpCompositionId = remoteCompositionId;
     });
     return true;
   }
