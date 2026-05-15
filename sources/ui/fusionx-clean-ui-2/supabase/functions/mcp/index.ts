@@ -6439,6 +6439,16 @@ async function ensurePairingContext(
     orderBy: 'updated_at',
   });
 
+  await rebindActiveAgentSessionsToContext({
+    userId,
+    deviceRefId: deviceRow.id as string,
+    appSessionId: appSessionRow.id as string,
+    activeContextId: activeContextRow.id as string,
+    projectId,
+    compositionId,
+    nowIso,
+  });
+
   return {
     userId,
     deviceId,
@@ -6451,6 +6461,31 @@ async function ensurePairingContext(
     timelineId,
     playheadMs,
   };
+}
+
+async function rebindActiveAgentSessionsToContext(input: {
+  userId: string;
+  deviceRefId: string;
+  appSessionId: string;
+  activeContextId: string;
+  projectId: string;
+  compositionId: string;
+  nowIso: string;
+}) {
+  const { error } = await admin
+    .from('refusion_agent_sessions')
+    .update({
+      active_context_id: input.activeContextId,
+      project_id: input.projectId,
+      composition_id: input.compositionId,
+    })
+    .eq('owner_id', input.userId)
+    .eq('device_ref', input.deviceRefId)
+    .eq('app_session_id', input.appSessionId)
+    .eq('status', 'active')
+    .is('revoked_at', null)
+    .gt('expires_at', input.nowIso);
+  if (error) throw error;
 }
 
 function asUuidOrEmpty(value: string): string {
