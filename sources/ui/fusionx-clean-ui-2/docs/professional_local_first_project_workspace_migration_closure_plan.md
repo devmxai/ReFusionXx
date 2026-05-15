@@ -29,8 +29,8 @@ b2f97087 checkpoint: finalize workspace identity runtime adoption core
 8446c992 checkpoint: prefer scene context over legacy layers sync
 9f73db64 checkpoint: enforce canonical transaction envelope at json-rpc boundary
 16a45950 checkpoint: normalize canonical transactions in agent control plane
-<pending> checkpoint: harden mutating transaction scope to active workspace identity
-<pending> checkpoint: require canonical target hints for mutating transactions
+e8d612ab checkpoint: enforce mutating transaction scope on active workspace
+8db64bba checkpoint: require target hints for mutating transactions
 ```
 
 ### What Is Closed
