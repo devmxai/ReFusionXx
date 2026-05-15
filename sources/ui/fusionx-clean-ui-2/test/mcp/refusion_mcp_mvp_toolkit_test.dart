@@ -74,6 +74,21 @@ void main() {
       expect(result.payload['projectId'], 'active');
     });
 
+    test('fails closed on composition identity placeholders', () {
+      final result = bus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_composition_spec',
+          capability: RefusionMcpCapability.projectRead,
+        ),
+        currentRevision: 7,
+      );
+      expect(result.ok, isTrue);
+      expect(result.payload['projectId'], isEmpty);
+      expect(result.payload['compositionId'], isEmpty);
+      expect(result.payload['hasActiveComposition'], isFalse);
+    });
+
     test('returns composition truth tools from active motion project', () {
       final toolBus = RefusionMcpCommandBus();
       const toolkit = RefusionMcpMvpToolkit();

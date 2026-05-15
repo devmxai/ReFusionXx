@@ -742,10 +742,13 @@ Map<String, Object?> _buildCompositionSpecPayload(
 ) {
   final state = config.projectStateReader();
   final project = config.projectReader?.call();
-  final projectId = project?.id ?? _readString(state['projectId']) ?? 'active';
-  final compositionId = _readString(state['compositionId']) ??
-      _firstScene(project)?.id ??
-      'active-composition';
+  final stateProjectId = _normalizedProjectIdentity(_readString(state['projectId']));
+  final stateCompositionId =
+      _normalizedCompositionIdentity(_readString(state['compositionId']));
+  final projectId = _normalizedProjectIdentity(project?.id) ?? stateProjectId;
+  final compositionId = _normalizedCompositionIdentity(_firstScene(project)?.id) ??
+      stateCompositionId;
+  final hasActiveComposition = projectId != null && compositionId != null;
   final canvasSize = project?.format.canvasSize;
   final canvasWidth = canvasSize?.width.round() ??
       _readInt(state['canvasWidth']) ??
@@ -765,8 +768,9 @@ Map<String, Object?> _buildCompositionSpecPayload(
       _readInt(state['playheadMs']) ?? _readInt(state['currentTimeMs']) ?? 0;
   final currentFrame = fps > 0 ? ((playheadMs / 1000.0) * fps).round() : 0;
   return <String, Object?>{
-    'projectId': projectId,
-    'compositionId': compositionId,
+    'projectId': projectId ?? '',
+    'compositionId': compositionId ?? '',
+    'hasActiveComposition': hasActiveComposition,
     'width': canvasWidth,
     'height': canvasHeight,
     'canvasWidth': canvasWidth,
@@ -1089,6 +1093,42 @@ String? _readString(Object? value) {
     return value.trim();
   }
   return null;
+}
+
+String? _normalizedProjectIdentity(String? value) {
+  final normalized = value?.trim();
+  if (normalized == null || normalized.isEmpty) {
+    return null;
+  }
+  final lower = normalized.toLowerCase();
+  if (const <String>{
+    'active',
+    'default',
+    'motion-project',
+    'project',
+  }.contains(lower)) {
+    return null;
+  }
+  return normalized;
+}
+
+String? _normalizedCompositionIdentity(String? value) {
+  final normalized = value?.trim();
+  if (normalized == null || normalized.isEmpty) {
+    return null;
+  }
+  final lower = normalized.toLowerCase();
+  if (const <String>{
+    'active-composition',
+    'active',
+    'scene-main',
+    'comp_1',
+    'main',
+    'default',
+  }.contains(lower)) {
+    return null;
+  }
+  return normalized;
 }
 
 void _registerMutationHandler({
