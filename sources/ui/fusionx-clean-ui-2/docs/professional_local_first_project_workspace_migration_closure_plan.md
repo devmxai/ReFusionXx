@@ -24,6 +24,7 @@ The following checkpoints are already completed and pushed:
 8f422de6 checkpoint: harden json-rpc session identity fail-closed
 fe1b5854 checkpoint: harden cloud bridge identity placeholders
 b2f97087 checkpoint: finalize workspace identity runtime adoption core
+0b952848 checkpoint: enforce workspace identity gate for active mcp context
 ```
 
 ### What Is Closed
@@ -40,6 +41,8 @@ Cloud bridge placeholder local context bootstraps from real remote context only.
 Focused MCP and cloud bridge tests pass for the identity hardening slice.
 ProjectWorkspaceV1 model is now wired into create/open/bootstrap runtime paths.
 MCP cloud context now publishes active composition only when runtime workspace identity is valid.
+Cloud bridge now requires valid workspace identity to publish active MCP context.
+Toolkit active context now fails closed on placeholders and reports workspace identity when valid.
 ```
 
 ### What Is Not Yet Closed
