@@ -1316,8 +1316,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         origin: 'center',
       );
     }
-    final activeSceneId =
-        _sceneScopeSession?.sourceSceneId ?? _rootMotionSceneId;
+    final activeSceneId = _rootMotionSceneId;
     final effectiveProject = _effectiveMotionProject;
     final canvasSize = effectiveProject.format.canvasSize;
     return RefusionMcpCloudContextState(
@@ -1440,8 +1439,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _handleMcpCloudSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {
     if (!_isMcpSnapshotForActiveComposition(snapshot)) {
       if (_bootstrapMcpCompositionFromSnapshotIfNeeded(snapshot)) {
-        _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
-      } else if (_adoptMcpCloudIdentityIfNeeded(snapshot)) {
         _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
       } else {
         if (kDebugMode) {
@@ -2739,17 +2736,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!hasLegacyAnimationPayload) {
       return false;
     }
-    final targetRemoteLayerId = _firstRemoteString(<Object?>[
-          animation['layerId'],
-          animation['targetLayerId'],
-          payload['layerId'],
-          payload['targetLayerId'],
-          updates['layerId'],
-          updates['targetLayerId'],
-          nestedPayload['layerId'],
-          nestedPayload['targetLayerId'],
-        ]) ??
-        _remoteString(remoteLayer['id']);
+    final targetRemoteLayerId = _resolveLegacyAnimationTargetRemoteLayerId(
+      remoteLayer: remoteLayer,
+      payload: payload,
+      updates: updates,
+      nestedPayload: nestedPayload,
+      animation: animation,
+      operation: operation,
+    );
     if (targetRemoteLayerId == null || targetRemoteLayerId.isEmpty) {
       return false;
     }
@@ -2911,6 +2905,119 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'property_id': propertyId,
       'keyframes': keyframes,
     });
+  }
+
+  String? _resolveLegacyAnimationTargetRemoteLayerId({
+    required Map<String, Object?> remoteLayer,
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> nestedPayload,
+    required Map<String, Object?> animation,
+    required String operation,
+  }) {
+    final payloadPayload = _remoteMap(payload['payload']);
+    final updatesPayload = _remoteMap(updates['payload']);
+    final directTarget = _firstRemoteString(<Object?>[
+      animation['layerId'],
+      animation['targetLayerId'],
+      payload['layerId'],
+      payload['targetLayerId'],
+      payload['requestedLayerId'],
+      payload['localLayerId'],
+      payload['clipId'],
+      updates['layerId'],
+      updates['targetLayerId'],
+      updates['requestedLayerId'],
+      updates['localLayerId'],
+      updates['clipId'],
+      nestedPayload['layerId'],
+      nestedPayload['targetLayerId'],
+      nestedPayload['requestedLayerId'],
+      nestedPayload['localLayerId'],
+      nestedPayload['clipId'],
+      payloadPayload['layerId'],
+      payloadPayload['targetLayerId'],
+      payloadPayload['requestedLayerId'],
+      payloadPayload['localLayerId'],
+      payloadPayload['clipId'],
+      updatesPayload['layerId'],
+      updatesPayload['targetLayerId'],
+      updatesPayload['requestedLayerId'],
+      updatesPayload['localLayerId'],
+      updatesPayload['clipId'],
+      _remoteString(remoteLayer['id']),
+    ]);
+    if (directTarget != null &&
+        directTarget.isNotEmpty &&
+        _mcpRemoteElementContextByLayerId(directTarget) != null) {
+      return directTarget;
+    }
+    final resolvedByIdentity = McpTextLayerResolution.resolveCandidateLayerId(
+      remoteLayerId: _remoteString(remoteLayer['id']) ?? '',
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+      exists: (candidate) =>
+          _mcpRemoteElementContextByLayerId(candidate) != null,
+    );
+    if (resolvedByIdentity != null &&
+        resolvedByIdentity.isNotEmpty &&
+        _mcpRemoteElementContextByLayerId(resolvedByIdentity) != null) {
+      return resolvedByIdentity;
+    }
+    final isTextLikeOperation = operation.contains('text') ||
+        operation.contains('typography') ||
+        operation.contains('title') ||
+        operation.contains('caption') ||
+        operation.contains('popup') ||
+        operation.contains('pop_up') ||
+        operation.contains('scale') ||
+        operation.contains('animate');
+    if (!isTextLikeOperation) {
+      return null;
+    }
+    final visibleTextContext = _mcpSingleVisibleTextElementContext();
+    if (visibleTextContext == null) {
+      return null;
+    }
+    return _mcpRemoteLayerIdForElementContext(visibleTextContext);
+  }
+
+  String? _mcpRemoteLayerIdForElementContext(_McpRemoteElementContext context) {
+    final project = _motionProject;
+    if (project == null) {
+      return null;
+    }
+    for (final scene in project.scenes) {
+      if (scene.id != context.sceneId) {
+        continue;
+      }
+      for (final layer in scene.layers) {
+        if (layer.id != context.layerId) {
+          continue;
+        }
+        for (final element in layer.elements) {
+          if (element.id != context.elementId) {
+            continue;
+          }
+          final metadata = element.sourceBinding?.metadata;
+          if (metadata == null || metadata.isEmpty) {
+            continue;
+          }
+          final canonical = metadata['mcp.remoteLayerId'];
+          if (canonical != null && canonical.trim().isNotEmpty) {
+            return canonical.trim();
+          }
+          for (final alias in _mcpRemoteLayerAliases(metadata)) {
+            if (alias.trim().isNotEmpty) {
+              return alias.trim();
+            }
+          }
+        }
+      }
+    }
+    return null;
   }
 
   bool _isMcpPopUpRecipe(String recipe) {

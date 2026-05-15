@@ -335,6 +335,15 @@ class RefusionMcpCloudBridge {
           'status': status,
           'platform': 'flutter',
           'appVersion': 'refusion-app',
+          if (state.canvasWidth != null && state.canvasWidth! > 0)
+            'canvasWidth': state.canvasWidth,
+          if (state.canvasHeight != null && state.canvasHeight! > 0)
+            'canvasHeight': state.canvasHeight,
+          if (state.durationMs != null && state.durationMs! > 0)
+            'durationMs': state.durationMs,
+          if (state.fps != null && state.fps! > 0) 'fps': state.fps,
+          'coordinateSystem': state.coordinateSystem,
+          'origin': state.origin,
         },
       );
       if (!hasActiveComposition) {
