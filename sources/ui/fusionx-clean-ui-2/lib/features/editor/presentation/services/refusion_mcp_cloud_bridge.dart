@@ -258,8 +258,9 @@ class RefusionMcpCloudBridge {
     List<Map<String, Object?>> warnings = const <Map<String, Object?>>[],
     String? errorMessage,
   }) async {
-    final projectIdArg = _normalizedIdentifierOrNull(projectId);
-    final compositionIdArg = _normalizedIdentifierOrNull(compositionId);
+    final projectIdArg = _normalizedProjectIdentifierOrNull(projectId);
+    final compositionIdArg =
+        _normalizedCompositionIdentifierOrNull(compositionId);
     if (projectIdArg == null || compositionIdArg == null) {
       return false;
     }
@@ -304,8 +305,9 @@ class RefusionMcpCloudBridge {
     try {
       final state = _contextReader();
       final status = _foreground && state.foreground ? 'online' : 'background';
-      final projectIdArg = _normalizedIdentifierOrNull(state.projectId);
-      final compositionIdArg = _normalizedIdentifierOrNull(state.compositionId);
+      final projectIdArg = _normalizedProjectIdentifierOrNull(state.projectId);
+      final compositionIdArg =
+          _normalizedCompositionIdentifierOrNull(state.compositionId);
       final hasActiveComposition =
           projectIdArg != null && compositionIdArg != null;
       _fireAndForgetTool(
@@ -357,10 +359,10 @@ class RefusionMcpCloudBridge {
         final contextProject = _asMap(contextPayload['project']);
         final contextComposition = _asMap(contextPayload['composition']);
         final contextLiveEditor = _asMap(contextPayload['liveEditor']);
-        final remoteProjectId = _normalizedIdentifierOrNull(
+        final remoteProjectId = _normalizedProjectIdentifierOrNull(
           _asString(contextProject['id']) ?? '',
         );
-        final remoteCompositionId = _normalizedIdentifierOrNull(
+        final remoteCompositionId = _normalizedCompositionIdentifierOrNull(
           _asString(contextComposition['id']) ?? '',
         );
         final liveSessionId = _asString(contextLiveEditor['editorSessionId']) ??
@@ -417,11 +419,11 @@ class RefusionMcpCloudBridge {
             timelineGraphResult: null,
             frameEvaluationResult: null,
             fallbackProjectId: remoteContextIsLive
-                ? remoteProjectId ?? state.projectId
-                : state.projectId,
+                ? remoteProjectId ?? (projectIdArg ?? '')
+                : (projectIdArg ?? ''),
             fallbackCompositionId: remoteContextIsLive
-                ? remoteCompositionId ?? state.compositionId
-                : state.compositionId,
+                ? remoteCompositionId ?? (compositionIdArg ?? '')
+                : (compositionIdArg ?? ''),
             localCanvasMetadata: _localCanvasMetadata(state),
             preferFallbackScope: !remoteContextIsLive,
           ),
@@ -1113,8 +1115,9 @@ class RefusionMcpCloudBridge {
 
   Future<RefusionMcpCloudPairingCode> generatePairingCode() async {
     final state = _contextReader();
-    final projectIdArg = _normalizedIdentifierOrNull(state.projectId);
-    final compositionIdArg = _normalizedIdentifierOrNull(state.compositionId);
+    final projectIdArg = _normalizedProjectIdentifierOrNull(state.projectId);
+    final compositionIdArg =
+        _normalizedCompositionIdentifierOrNull(state.compositionId);
     final hasActiveComposition =
         projectIdArg != null && compositionIdArg != null;
     final response = await _callTool(
@@ -1355,12 +1358,43 @@ List<Map<String, Object?>> _asListOfMap(Object? value) {
   return result;
 }
 
-String? _normalizedIdentifierOrNull(String? value) {
+String? _normalizedProjectIdentifierOrNull(String? value) {
   if (value == null) {
     return null;
   }
   final normalized = value.trim();
   if (normalized.isEmpty) {
+    return null;
+  }
+  final lower = normalized.toLowerCase();
+  if (const <String>{
+    'active',
+    'default',
+    'motion-project',
+    'project',
+  }.contains(lower)) {
+    return null;
+  }
+  return normalized;
+}
+
+String? _normalizedCompositionIdentifierOrNull(String? value) {
+  if (value == null) {
+    return null;
+  }
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return null;
+  }
+  final lower = normalized.toLowerCase();
+  if (const <String>{
+    'active-composition',
+    'active',
+    'scene-main',
+    'comp_1',
+    'main',
+    'default',
+  }.contains(lower)) {
     return null;
   }
   return normalized;

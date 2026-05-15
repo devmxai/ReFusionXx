@@ -303,6 +303,41 @@ void main() {
     );
 
     test(
+      'placeholder local context fails closed and bootstraps from remote context',
+      () async {
+        final server = await _FakeMcpServer.start(
+          diagnosticsDelay: const Duration(milliseconds: 20),
+        );
+        addTearDown(server.close);
+
+        final snapshots = <RefusionMcpCloudBridgeSnapshot>[];
+        final bridge = RefusionMcpCloudBridge(
+          endpoint: server.endpoint,
+          deviceId: 'test-device',
+          contextReader: () => const RefusionMcpCloudContextState(
+            projectId: 'active',
+            compositionId: 'comp_1',
+            playheadMs: 0,
+            timelineRevision: 1,
+            foreground: true,
+          ),
+          onSnapshot: snapshots.add,
+          interval: const Duration(seconds: 60),
+          connectTimeout: const Duration(seconds: 2),
+        );
+        addTearDown(bridge.stop);
+
+        await bridge.syncNow();
+
+        expect(server.callCount('sync_editor_layers'), 0);
+        expect(server.callCount('get_layers'), greaterThan(0));
+        expect(snapshots, isNotEmpty);
+        expect(snapshots.first.projectId, 'project-1');
+        expect(snapshots.first.compositionId, 'composition-1');
+      },
+    );
+
+    test(
       'blank local context ignores stale offline remote active context',
       () async {
         final server = await _FakeMcpServer.start(
