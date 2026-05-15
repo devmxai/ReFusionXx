@@ -385,6 +385,8 @@ async function callTool(
       return await getElementGeometry(context, args);
     case 'refusion.get_visual_layout_summary':
       return await getVisualLayoutSummary(context, args);
+    case 'refusion.get_spatial_scene_snapshot':
+      return await getSpatialSceneSnapshot(context, args);
     case 'refusion.position_at_anchor':
       ensureAgentWrite(canonicalToolName, context);
       return await positionAtAnchor(context, args);
@@ -498,6 +500,7 @@ function normalizeToolName(name: string): string {
     get_canvas_metadata: 'refusion.get_canvas_metadata',
     get_element_geometry: 'refusion.get_element_geometry',
     get_visual_layout_summary: 'refusion.get_visual_layout_summary',
+    get_spatial_scene_snapshot: 'refusion.get_spatial_scene_snapshot',
     position_at_anchor: 'refusion.position_at_anchor',
     align_to_anchor: 'refusion.position_at_anchor',
     place_at_anchor: 'refusion.position_at_anchor',
@@ -4146,6 +4149,102 @@ async function getVisualLayoutSummary(
   });
 }
 
+async function getSpatialSceneSnapshot(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const canvas = await getCanvasMetadata(context, args);
+  if (!canvas.ok) {
+    return canvas;
+  }
+  const layout = await getVisualLayoutSummary(context, args);
+  if (!layout.ok) {
+    return layout;
+  }
+  const geometry = await getElementGeometry(context, args);
+  const snapshot = await getProjectSnapshot(context, args);
+  if (!snapshot.ok) {
+    return snapshot;
+  }
+  const timeline = await getTimelineGraph(context, args);
+  if (!timeline.ok) {
+    return timeline;
+  }
+  const frame = await evaluateFrame(context, args);
+  if (!frame.ok) {
+    return frame;
+  }
+
+  const canvasPayload = readMap(canvas.payload);
+  const layoutPayload = readMap(layout.payload);
+  const geometryPayload = geometry.ok ? readMap(geometry.payload) : {};
+  const snapshotPayload = readMap(snapshot.payload);
+  const timelinePayload = readMap(timeline.payload);
+  const framePayload = readMap(frame.payload);
+  const revision = numberValue(
+    firstDefined(
+      snapshotPayload.revision,
+      timelinePayload.revision,
+      canvasPayload.revision,
+      0,
+    ),
+    0,
+  );
+  const projectId = text(
+    firstDefined(
+      canvasPayload.projectId,
+      snapshotPayload.projectId,
+      timelinePayload.projectId,
+      '',
+    ),
+    '',
+  );
+  const compositionId = text(
+    firstDefined(
+      canvasPayload.compositionId,
+      snapshotPayload.compositionId,
+      timelinePayload.compositionId,
+      '',
+    ),
+    '',
+  );
+  const frameTimeMs = numberValue(
+    firstDefined(framePayload.timeMs, layoutPayload.playheadMs, 0),
+    0,
+  );
+  const snapshotId = `${projectId}:${compositionId}:r${revision}:t${frameTimeMs}`;
+  const visibleElements = readList(firstDefined(
+    framePayload.visibleLayers,
+    layoutPayload.layers,
+    [],
+  ));
+
+  return ok('Spatial scene snapshot loaded.', {
+    projectId,
+    compositionId,
+    revision,
+    snapshotId,
+    frameTimeMs,
+    coordinateContract: {
+      canonical: 'centerOrigin',
+      absolute: 'topLeftAbsolute',
+      unit: 'px',
+    },
+    canvasMetadata: canvasPayload,
+    visualLayoutSummary: layoutPayload,
+    primaryElementGeometry: geometryPayload,
+    projectSnapshot: snapshotPayload,
+    timelineGraph: timelinePayload,
+    frameEvaluation: framePayload,
+    visibleElements,
+    selectedElements: readList(readMap(snapshotPayload.selection).selected),
+    naturalLanguageSummary: text(
+      firstDefined(layoutPayload.summary, framePayload.summary, ''),
+      'Spatial scene snapshot prepared.',
+    ),
+  });
+}
+
 async function positionAtAnchor(
   context: RequestContext,
   args: JsonMap,
@@ -7100,6 +7199,11 @@ function tools() {
       'refusion.get_visual_layout_summary',
       'Get Visual Layout Summary',
       'Return layout summary with overlap diagnostics and smart suggestions.',
+    ),
+    tool(
+      'refusion.get_spatial_scene_snapshot',
+      'Get Spatial Scene Snapshot',
+      'Return evaluated spatial truth bundle: canvas metadata, layout summary, element geometry, timeline graph, project snapshot, and frame evaluation.',
     ),
     tool(
       'refusion.evaluate_frame',

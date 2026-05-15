@@ -1,4 +1,4 @@
-import 'package:meta/meta.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../presentation/models/timeline_time.dart';
 import '../models/composition_scene_clip_models.dart';
@@ -173,7 +173,7 @@ class RefusionMcpMvpToolkit {
               'id': projectState['timelineId'] ?? 'main',
               'playheadMs': projectState['playheadMs'] ?? 0,
             },
-            'liveEditor': <String, Object?>{
+            'liveEditor': const <String, Object?>{
               'online': true,
             },
           },
@@ -213,6 +213,18 @@ class RefusionMcpMvpToolkit {
         return RefusionMcpCommandHandlingOutcome(
           summary: 'Visual layout summary loaded.',
           payload: _buildVisualLayoutSummaryPayload(config),
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_spatial_scene_snapshot',
+      handler: (context) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Spatial scene snapshot loaded.',
+          payload: _buildSpatialSceneSnapshotPayload(
+            config,
+            context.command.payload,
+          ),
         );
       },
     );
@@ -829,6 +841,36 @@ Map<String, Object?> _buildVisualLayoutSummaryPayload(
     'layers': layers,
     'summary':
         'Canvas ${spec['width']}x${spec['height']} with ${layers.length} layer(s).',
+  };
+}
+
+Map<String, Object?> _buildSpatialSceneSnapshotPayload(
+  RefusionMcpMvpToolkitConfig config,
+  Map<String, Object?> payload,
+) {
+  final metadata = _buildCanvasMetadataPayload(config);
+  final layoutSummary = _buildVisualLayoutSummaryPayload(config);
+  final geometry = _buildElementGeometryPayload(config, payload);
+  final projectSnapshot = _buildProjectSnapshotPayload(config);
+  final timelineGraph = _buildTimelineGraphPayload(config);
+  final frame = _buildFrameEvaluationPayload(config, payload);
+  return <String, Object?>{
+    'projectId': metadata['projectId'],
+    'compositionId': metadata['compositionId'],
+    'revision': projectSnapshot['revision'],
+    'canvasMetadata': metadata,
+    'visualLayoutSummary': layoutSummary,
+    'primaryElementGeometry': geometry,
+    'projectSnapshot': projectSnapshot,
+    'timelineGraph': timelineGraph,
+    'frameEvaluation': frame,
+    'snapshotId':
+        '${metadata['projectId'] ?? 'project'}:${metadata['compositionId'] ?? 'composition'}:${projectSnapshot['revision'] ?? 0}:${frame['timeMs'] ?? 0}',
+    'coordinateContract': const <String, Object?>{
+      'canonical': 'centerOrigin',
+      'absolute': 'topLeftAbsolute',
+      'unit': 'px',
+    },
   };
 }
 

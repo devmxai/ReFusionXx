@@ -73,6 +73,7 @@ class RefusionMcpToolRegistry {
     'get_canvas_metadata': 'refusion.get_canvas_metadata',
     'get_element_geometry': 'refusion.get_element_geometry',
     'get_visual_layout_summary': 'refusion.get_visual_layout_summary',
+    'get_spatial_scene_snapshot': 'refusion.get_spatial_scene_snapshot',
     'evaluate_frame': 'refusion.evaluate_frame',
     'explain_capabilities': 'refusion.explain_capabilities',
     'list_components': 'refusion.list_components',
@@ -188,6 +189,13 @@ class RefusionMcpToolRegistry {
       title: 'Get Visual Layout Summary',
       description:
           'Return layout summary with overlap and safe-area diagnostics.',
+      capability: RefusionMcpCapability.timelineRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.get_spatial_scene_snapshot',
+      title: 'Get Spatial Scene Snapshot',
+      description:
+          'Return evaluated canvas/layer/timeline spatial truth for the active frame.',
       capability: RefusionMcpCapability.timelineRead,
     ),
     RefusionMcpToolDescriptor(

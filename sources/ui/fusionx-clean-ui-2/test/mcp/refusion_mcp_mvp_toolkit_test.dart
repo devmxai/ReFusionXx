@@ -138,6 +138,21 @@ void main() {
       expect(geometry.payload['layerId'], 'layer_1');
       expect(geometry.payload['canvasWidth'], 1080);
       expect(geometry.payload['canvasHeight'], 1920);
+
+      final spatialSnapshot = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_spatial_scene_snapshot',
+          capability: RefusionMcpCapability.timelineRead,
+          payload: const <String, Object?>{'layerId': 'layer_1'},
+        ),
+        currentRevision: 9,
+      );
+      expect(spatialSnapshot.ok, isTrue);
+      expect(spatialSnapshot.payload['canvasMetadata'], isNotNull);
+      expect(spatialSnapshot.payload['primaryElementGeometry'], isNotNull);
+      expect(spatialSnapshot.payload['timelineGraph'], isNotNull);
+      expect(spatialSnapshot.payload['frameEvaluation'], isNotNull);
     });
 
     test('returns preview resource uri', () {

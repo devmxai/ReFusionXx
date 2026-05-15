@@ -606,17 +606,8 @@ class RefusionMcpCloudBridge {
 
   Future<void> _runDiagnosticsSync(_DiagnosticsSyncRequest request) async {
     try {
-      final canvasMetadataResponse = await _safeCallTool(
-        toolName: 'get_canvas_metadata',
-        arguments: <String, Object?>{
-          'projectId': request.projectId,
-          'compositionId': request.compositionId,
-        },
-        allowAgentSessionToken: true,
-        softTimeout: _diagnosticsSoftTimeout,
-      );
-      final visualLayoutSummaryResponse = await _safeCallTool(
-        toolName: 'get_visual_layout_summary',
+      final spatialSnapshotResponse = await _safeCallTool(
+        toolName: 'get_spatial_scene_snapshot',
         arguments: <String, Object?>{
           'projectId': request.projectId,
           'compositionId': request.compositionId,
@@ -625,58 +616,108 @@ class RefusionMcpCloudBridge {
         allowAgentSessionToken: true,
         softTimeout: _diagnosticsSoftTimeout,
       );
-      final firstLayerId = _asString(
+      final spatialSnapshotPayload = _asMap(
         _asMap(
-          _asListOfMap(
-            _asMap(_asMap(request.layersResponse?['structuredContent'])[
-                'payload'])['layers'],
-          ).isNotEmpty
-              ? _asListOfMap(
-                  _asMap(_asMap(request.layersResponse?['structuredContent'])[
-                      'payload'])['layers'],
-                ).first
-              : const <String, Object?>{},
-        )['id'],
+            _asMap(spatialSnapshotResponse?['structuredContent'])['payload']),
       );
-      final elementGeometryResponse = await _safeCallTool(
-        toolName: 'get_element_geometry',
-        arguments: <String, Object?>{
-          'projectId': request.projectId,
-          'compositionId': request.compositionId,
-          if (firstLayerId != null) 'layerId': firstLayerId,
-          'timeMs': request.state.playheadMs,
-        },
-        allowAgentSessionToken: true,
-        softTimeout: _diagnosticsSoftTimeout,
-      );
-      final projectSnapshotResponse = await _safeCallTool(
-        toolName: 'get_project_snapshot',
-        arguments: <String, Object?>{
-          'projectId': request.projectId,
-          'compositionId': request.compositionId,
-        },
-        allowAgentSessionToken: true,
-        softTimeout: _diagnosticsSoftTimeout,
-      );
-      final timelineGraphResponse = await _safeCallTool(
-        toolName: 'get_timeline_graph',
-        arguments: <String, Object?>{
-          'projectId': request.projectId,
-          'compositionId': request.compositionId,
-        },
-        allowAgentSessionToken: true,
-        softTimeout: _diagnosticsSoftTimeout,
-      );
-      final frameEvaluationResponse = await _safeCallTool(
-        toolName: 'evaluate_frame',
-        arguments: <String, Object?>{
-          'projectId': request.projectId,
-          'compositionId': request.compositionId,
-          'timeMs': request.state.playheadMs,
-        },
-        allowAgentSessionToken: true,
-        softTimeout: _diagnosticsSoftTimeout,
-      );
+      Map<String, Object?>? canvasMetadataResponse;
+      Map<String, Object?>? visualLayoutSummaryResponse;
+      Map<String, Object?>? elementGeometryResponse;
+      Map<String, Object?>? projectSnapshotResponse;
+      Map<String, Object?>? timelineGraphResponse;
+      Map<String, Object?>? frameEvaluationResponse;
+      if (spatialSnapshotPayload.isNotEmpty) {
+        canvasMetadataResponse = _toolResultFromPayload(
+          _asMap(spatialSnapshotPayload['canvasMetadata']),
+        );
+        visualLayoutSummaryResponse = _toolResultFromPayload(
+          _asMap(spatialSnapshotPayload['visualLayoutSummary']),
+        );
+        elementGeometryResponse = _toolResultFromPayload(
+          _asMap(spatialSnapshotPayload['primaryElementGeometry']),
+        );
+        projectSnapshotResponse = _toolResultFromPayload(
+          _asMap(spatialSnapshotPayload['projectSnapshot']),
+        );
+        timelineGraphResponse = _toolResultFromPayload(
+          _asMap(spatialSnapshotPayload['timelineGraph']),
+        );
+        frameEvaluationResponse = _toolResultFromPayload(
+          _asMap(spatialSnapshotPayload['frameEvaluation']),
+        );
+      } else {
+        canvasMetadataResponse = await _safeCallTool(
+          toolName: 'get_canvas_metadata',
+          arguments: <String, Object?>{
+            'projectId': request.projectId,
+            'compositionId': request.compositionId,
+          },
+          allowAgentSessionToken: true,
+          softTimeout: _diagnosticsSoftTimeout,
+        );
+        visualLayoutSummaryResponse = await _safeCallTool(
+          toolName: 'get_visual_layout_summary',
+          arguments: <String, Object?>{
+            'projectId': request.projectId,
+            'compositionId': request.compositionId,
+            'timeMs': request.state.playheadMs,
+          },
+          allowAgentSessionToken: true,
+          softTimeout: _diagnosticsSoftTimeout,
+        );
+        final firstLayerId = _asString(
+          _asMap(
+            _asListOfMap(
+              _asMap(_asMap(request.layersResponse?['structuredContent'])[
+                  'payload'])['layers'],
+            ).isNotEmpty
+                ? _asListOfMap(
+                    _asMap(_asMap(request.layersResponse?['structuredContent'])[
+                        'payload'])['layers'],
+                  ).first
+                : const <String, Object?>{},
+          )['id'],
+        );
+        elementGeometryResponse = await _safeCallTool(
+          toolName: 'get_element_geometry',
+          arguments: <String, Object?>{
+            'projectId': request.projectId,
+            'compositionId': request.compositionId,
+            if (firstLayerId != null) 'layerId': firstLayerId,
+            'timeMs': request.state.playheadMs,
+          },
+          allowAgentSessionToken: true,
+          softTimeout: _diagnosticsSoftTimeout,
+        );
+        projectSnapshotResponse = await _safeCallTool(
+          toolName: 'get_project_snapshot',
+          arguments: <String, Object?>{
+            'projectId': request.projectId,
+            'compositionId': request.compositionId,
+          },
+          allowAgentSessionToken: true,
+          softTimeout: _diagnosticsSoftTimeout,
+        );
+        timelineGraphResponse = await _safeCallTool(
+          toolName: 'get_timeline_graph',
+          arguments: <String, Object?>{
+            'projectId': request.projectId,
+            'compositionId': request.compositionId,
+          },
+          allowAgentSessionToken: true,
+          softTimeout: _diagnosticsSoftTimeout,
+        );
+        frameEvaluationResponse = await _safeCallTool(
+          toolName: 'evaluate_frame',
+          arguments: <String, Object?>{
+            'projectId': request.projectId,
+            'compositionId': request.compositionId,
+            'timeMs': request.state.playheadMs,
+          },
+          allowAgentSessionToken: true,
+          softTimeout: _diagnosticsSoftTimeout,
+        );
+      }
       _emitSnapshot(
         _snapshotFromContextResponse(
           request.contextResponse,
@@ -703,6 +744,16 @@ class RefusionMcpCloudBridge {
         _scheduleDiagnosticsSync(queued);
       }
     }
+  }
+
+  Map<String, Object?> _toolResultFromPayload(Map<String, Object?> payload) {
+    return <String, Object?>{
+      'structuredContent': <String, Object?>{
+        'ok': true,
+        'summary': 'ok',
+        'payload': payload,
+      },
+    };
   }
 
   List<String> _pendingCommandTargetLayerIds(

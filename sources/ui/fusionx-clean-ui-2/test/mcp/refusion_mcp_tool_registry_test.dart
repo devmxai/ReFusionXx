@@ -12,6 +12,7 @@ void main() {
       expect(names.contains('refusion.capture_preview_frame'), isTrue);
       expect(names.contains('refusion.get_security_profile'), isTrue);
       expect(names.contains('refusion.get_host_compatibility'), isTrue);
+      expect(names.contains('refusion.get_spatial_scene_snapshot'), isTrue);
       expect(names.contains('refusion.validate_scene_program'), isTrue);
       expect(names.contains('refusion.author_scene_program'), isTrue);
       expect(names.contains('refusion.apply_scene_program'), isTrue);
@@ -49,6 +50,10 @@ void main() {
       expect(
         registry.normalizeToolName('get_project_state'),
         'refusion.get_project_state',
+      );
+      expect(
+        registry.normalizeToolName('get_spatial_scene_snapshot'),
+        'refusion.get_spatial_scene_snapshot',
       );
       expect(
         registry.normalizeToolName('unknown_tool'),

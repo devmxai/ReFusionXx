@@ -81,7 +81,8 @@ void main() {
 
         expect(proof['dataApplied'], isTrue);
         expect(proof['timelineVisible'], isTrue);
-        expect(proof['rendererApplied'], isTrue);
+        // Renderer proof now requires a resolved target (or explicit override).
+        expect(proof['rendererApplied'], isFalse);
         expect(proof['visualBoundsVerified'], isTrue);
       },
     );
@@ -101,6 +102,7 @@ void main() {
         playerInvalidated: true,
         timelineVisibleOverride: false,
         rendererAppliedOverride: false,
+        visualBoundsVerifiedOverride: false,
         extraProof: const <String, Object?>{
           'targetProjectionComplete': false,
           'projectedTargetCount': 0,

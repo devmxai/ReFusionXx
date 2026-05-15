@@ -2244,6 +2244,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         timelineVisibleOverride: projectionValidation.timelineVisible,
         rendererAppliedOverride: rendererProofSatisfied,
         visualBoundsVerifiedOverride: visualBoundsProof.visualBoundsVerified,
+        insideCanvasOverride: visualBoundsProof.insideCanvas,
+        expectedBounds: visualBoundsProof.expectedBounds,
+        renderedBounds: visualBoundsProof.renderedBounds,
         extraProof: <String, Object?>{
           ...projectionValidation.toProofMap(),
           ...visualBoundsProof.toProofMap(),
@@ -3487,13 +3490,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
 
     final canvasSize = _motionProjectFormat.canvasSize;
-    final directCenterX = _firstRemoteDouble(<Object?>[
-      updates['centerX'],
-      payload['centerX'],
-      updatePayload['centerX'],
-      updatesStyle['centerX'],
-      payloadStyle['centerX'],
-      updatePayloadStyle['centerX'],
+    final coordinateSpace = _mcpRemoteCoordinateSpace(
+      remoteLayer: const <String, Object?>{},
+      payload: payload,
+      updates: updates,
+      payloadPayload: updatePayload,
+      updatesPayload: updatePayload,
+      nestedLayer: const <String, Object?>{},
+      props: payloadStyle,
+      updateProps: updatesStyle,
+      nestedPayloadProps: updatePayloadStyle,
+    );
+    final rawX = _firstRemoteDouble(<Object?>[
       updates['x'],
       payload['x'],
       updatePayload['x'],
@@ -3502,20 +3510,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updatePayloadStyle['x'],
       loweredEffectMutation.centerX,
     ]);
-    if (directCenterX != null) {
-      final relativeX = directCenterX - (canvasSize.width / 2.0);
-      if ((nextTransform.positionX - relativeX).abs() > 0.001) {
-        nextTransform = nextTransform.copyWith(positionX: relativeX);
-        didChange = true;
-      }
-    }
-    final directCenterY = _firstRemoteDouble(<Object?>[
-      updates['centerY'],
-      payload['centerY'],
-      updatePayload['centerY'],
-      updatesStyle['centerY'],
-      payloadStyle['centerY'],
-      updatePayloadStyle['centerY'],
+    final rawY = _firstRemoteDouble(<Object?>[
       updates['y'],
       payload['y'],
       updatePayload['y'],
@@ -3524,8 +3519,53 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updatePayloadStyle['y'],
       loweredEffectMutation.centerY,
     ]);
-    if (directCenterY != null) {
-      final relativeY = directCenterY - (canvasSize.height / 2.0);
+    final directCenterX = _firstRemoteDouble(<Object?>[
+      updates['centerX'],
+      payload['centerX'],
+      updatePayload['centerX'],
+      updatesStyle['centerX'],
+      payloadStyle['centerX'],
+      updatePayloadStyle['centerX'],
+    ]);
+    final directCenterY = _firstRemoteDouble(<Object?>[
+      updates['centerY'],
+      payload['centerY'],
+      updatePayload['centerY'],
+      updatesStyle['centerY'],
+      payloadStyle['centerY'],
+      updatePayloadStyle['centerY'],
+    ]);
+    final resolvedCoordinateSpace = _mcpResolvedCoordinateSpaceForPlacement(
+      coordinateSpace: coordinateSpace,
+      rawX: rawX,
+      rawY: rawY,
+      absoluteCenterX: directCenterX,
+      absoluteCenterY: directCenterY,
+      canvasSize: canvasSize,
+    );
+    final canonicalX = directCenterX == null
+        ? _mcpCanonicalCoordinateFromRemoteValue(
+            rawX,
+            axisExtent: canvasSize.width,
+            coordinateSpace: resolvedCoordinateSpace,
+          )
+        : directCenterX - (canvasSize.width / 2.0);
+    final canonicalY = directCenterY == null
+        ? _mcpCanonicalCoordinateFromRemoteValue(
+            rawY,
+            axisExtent: canvasSize.height,
+            coordinateSpace: resolvedCoordinateSpace,
+          )
+        : directCenterY - (canvasSize.height / 2.0);
+    if (directCenterX != null || rawX != null) {
+      final relativeX = canonicalX;
+      if ((nextTransform.positionX - relativeX).abs() > 0.001) {
+        nextTransform = nextTransform.copyWith(positionX: relativeX);
+        didChange = true;
+      }
+    }
+    if (directCenterY != null || rawY != null) {
+      final relativeY = canonicalY;
       if ((nextTransform.positionY - relativeY).abs() > 0.001) {
         nextTransform = nextTransform.copyWith(positionY: relativeY);
         didChange = true;
@@ -3643,6 +3683,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final style = _remoteMap(payload['style']);
     final updateStyle = _remoteMap(updates['style']);
     final payloadStyle = _remoteMap(payloadPayload['style']);
+    final props = _remoteMap(payload['props']);
+    final updateProps = _remoteMap(updates['props']);
+    final nestedPayloadProps = _remoteMap(updatesPayload['props']);
     final operation = _firstRemoteString(<Object?>[
           payload['operation'],
           updates['operation'],
@@ -3818,38 +3861,87 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final colorHex = _extractRemoteSolidColorHex(remoteLayer);
     final color = _parseCompositionColor(colorHex) ?? const Color(0xFFFFFFFF);
     final canvasSize = _motionProjectFormat.canvasSize;
-    final centerX = _firstRemoteDouble(<Object?>[
-          updates['x'],
-          payload['x'],
-          updates['centerX'],
-          payload['centerX'],
-          updatesPayload['x'],
-          updatesPayload['centerX'],
-          nestedLayer['x'],
-          nestedLayer['centerX'],
-          style['x'],
-          updateStyle['x'],
-          payloadStyle['x'],
-        ]) ??
-        (canvasSize.width / 2.0);
-    final centerY = _firstRemoteDouble(<Object?>[
-          updates['y'],
-          payload['y'],
-          updates['centerY'],
-          payload['centerY'],
-          updatesPayload['y'],
-          updatesPayload['centerY'],
-          nestedLayer['y'],
-          nestedLayer['centerY'],
-          style['y'],
-          updateStyle['y'],
-          payloadStyle['y'],
-        ]) ??
-        (canvasSize.height / 2.0);
-    final relativeX =
-        preferBackgroundRole ? 0.0 : centerX - (canvasSize.width / 2.0);
-    final relativeY =
-        preferBackgroundRole ? 0.0 : centerY - (canvasSize.height / 2.0);
+    final rawX = _firstRemoteDouble(<Object?>[
+      updates['x'],
+      payload['x'],
+      updatesPayload['x'],
+      payloadPayload['x'],
+      nestedLayer['x'],
+      style['x'],
+      updateStyle['x'],
+      payloadStyle['x'],
+      props['x'],
+      updateProps['x'],
+      nestedPayloadProps['x'],
+    ]);
+    final rawY = _firstRemoteDouble(<Object?>[
+      updates['y'],
+      payload['y'],
+      updatesPayload['y'],
+      payloadPayload['y'],
+      nestedLayer['y'],
+      style['y'],
+      updateStyle['y'],
+      payloadStyle['y'],
+      props['y'],
+      updateProps['y'],
+      nestedPayloadProps['y'],
+    ]);
+    final absoluteCenterX = _firstRemoteDouble(<Object?>[
+      updates['centerX'],
+      payload['centerX'],
+      updatesPayload['centerX'],
+      payloadPayload['centerX'],
+      nestedLayer['centerX'],
+      props['centerX'],
+      updateProps['centerX'],
+      nestedPayloadProps['centerX'],
+    ]);
+    final absoluteCenterY = _firstRemoteDouble(<Object?>[
+      updates['centerY'],
+      payload['centerY'],
+      updatesPayload['centerY'],
+      payloadPayload['centerY'],
+      nestedLayer['centerY'],
+      props['centerY'],
+      updateProps['centerY'],
+      nestedPayloadProps['centerY'],
+    ]);
+    final coordinateSpace = _mcpRemoteCoordinateSpace(
+      remoteLayer: remoteLayer,
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+      nestedLayer: nestedLayer,
+      props: props,
+      updateProps: updateProps,
+      nestedPayloadProps: nestedPayloadProps,
+    );
+    final resolvedCoordinateSpace = _mcpResolvedCoordinateSpaceForPlacement(
+      coordinateSpace: coordinateSpace,
+      rawX: rawX,
+      rawY: rawY,
+      absoluteCenterX: absoluteCenterX,
+      absoluteCenterY: absoluteCenterY,
+      canvasSize: canvasSize,
+    );
+    final canonicalX = absoluteCenterX == null
+        ? _mcpCanonicalCoordinateFromRemoteValue(
+            rawX,
+            axisExtent: canvasSize.width,
+            coordinateSpace: resolvedCoordinateSpace,
+          )
+        : absoluteCenterX - (canvasSize.width / 2.0);
+    final canonicalY = absoluteCenterY == null
+        ? _mcpCanonicalCoordinateFromRemoteValue(
+            rawY,
+            axisExtent: canvasSize.height,
+            coordinateSpace: resolvedCoordinateSpace,
+          )
+        : absoluteCenterY - (canvasSize.height / 2.0);
+    final relativeX = preferBackgroundRole ? 0.0 : canonicalX;
+    final relativeY = preferBackgroundRole ? 0.0 : canonicalY;
     final width = preferBackgroundRole
         ? canvasSize.width
         : (_firstRemoteDouble(<Object?>[
@@ -7052,8 +7144,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (targetIds.isEmpty) {
       return _McpVisualBoundsProof(
         visualBoundsVerified: true,
+        insideCanvas: true,
         canvasBounds: canvasBounds,
         visualBounds: const <String, Object?>{},
+        expectedBounds: const <String, Object?>{},
+        renderedBounds: const <String, Object?>{},
         checkedTargetIds: const <String>[],
         failedTargetIds: const <String>[],
       );
@@ -7061,6 +7156,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final checkedTargetIds = <String>[];
     final failedTargetIds = <String>[];
     Map<String, Object?> visualBounds = const <String, Object?>{};
+    Map<String, Object?> expectedBounds = const <String, Object?>{};
+    Map<String, Object?> renderedBounds = const <String, Object?>{};
+    var insideCanvas = true;
     for (final targetLayerId in targetIds) {
       final context = _mcpRemoteElementContextByLayerId(targetLayerId);
       if (context == null) {
@@ -7100,8 +7198,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         'width': width,
         'height': height,
       };
+      renderedBounds = currentVisualBounds;
+      expectedBounds = canvasBounds;
       if (visualBounds.isEmpty) {
         visualBounds = currentVisualBounds;
+      }
+      if (!_isRectInsideCanvas(
+        x: absoluteLeft,
+        y: absoluteTop,
+        width: width,
+        height: height,
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+      )) {
+        insideCanvas = false;
       }
       final widthMatches = (width - canvas.width).abs() <= 1.0;
       final heightMatches = (height - canvas.height).abs() <= 1.0;
@@ -7114,11 +7224,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final visualBoundsVerified = failedTargetIds.isEmpty;
     return _McpVisualBoundsProof(
       visualBoundsVerified: visualBoundsVerified,
+      insideCanvas: insideCanvas,
       canvasBounds: canvasBounds,
       visualBounds: visualBounds,
+      expectedBounds: expectedBounds,
+      renderedBounds: renderedBounds,
       checkedTargetIds: checkedTargetIds,
       failedTargetIds: failedTargetIds,
     );
+  }
+
+  bool _isRectInsideCanvas({
+    required double x,
+    required double y,
+    required double width,
+    required double height,
+    required double canvasWidth,
+    required double canvasHeight,
+  }) {
+    const epsilon = 0.5;
+    final right = x + width;
+    final bottom = y + height;
+    return x >= -epsilon &&
+        y >= -epsilon &&
+        right <= canvasWidth + epsilon &&
+        bottom <= canvasHeight + epsilon;
   }
 
   _McpElementSnapshot? _mcpElementSnapshot(_McpRemoteElementContext context) {
@@ -36000,20 +36130,29 @@ class _McpElementSnapshot {
 class _McpVisualBoundsProof {
   const _McpVisualBoundsProof({
     required this.visualBoundsVerified,
+    required this.insideCanvas,
     required this.canvasBounds,
     required this.visualBounds,
+    required this.expectedBounds,
+    required this.renderedBounds,
     required this.checkedTargetIds,
     required this.failedTargetIds,
   });
 
   final bool visualBoundsVerified;
+  final bool insideCanvas;
   final Map<String, Object?> canvasBounds;
   final Map<String, Object?> visualBounds;
+  final Map<String, Object?> expectedBounds;
+  final Map<String, Object?> renderedBounds;
   final List<String> checkedTargetIds;
   final List<String> failedTargetIds;
 
   Map<String, Object?> toProofMap() {
     return <String, Object?>{
+      'insideCanvas': insideCanvas,
+      'expectedBounds': expectedBounds,
+      'renderedBounds': renderedBounds,
       'proofBounds': <String, Object?>{
         'canvas': canvasBounds,
         if (visualBounds.isNotEmpty) 'visual': visualBounds,
