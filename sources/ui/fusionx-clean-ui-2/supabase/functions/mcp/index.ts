@@ -7338,10 +7338,31 @@ function canonicalLayerPayload(args: JsonMap): JsonMap {
 
   const fontSize = firstDefined(args.fontSize, args.font_size, out.fontSize, out.font_size);
   if (fontSize !== undefined) out.fontSize = fontSize;
-  const x = firstDefined(args.x, args.centerX, out.x, out.centerX);
-  const y = firstDefined(args.y, args.centerY, out.y, out.centerY);
+  const x = firstDefined(args.x, out.x);
+  const y = firstDefined(args.y, out.y);
+  const centerX = firstDefined(args.centerX, args.cx, out.centerX, out.cx);
+  const centerY = firstDefined(args.centerY, args.cy, out.centerY, out.cy);
   if (x !== undefined) out.x = x;
   if (y !== undefined) out.y = y;
+  if (centerX !== undefined) out.centerX = centerX;
+  if (centerY !== undefined) out.centerY = centerY;
+
+  const coordinateSpace = firstText(
+    args.coordinateSpace,
+    args.coordinate_system,
+    args.coordinateSystem,
+    args.origin,
+    out.coordinateSpace,
+    out.coordinate_system,
+    out.coordinateSystem,
+    out.origin,
+  );
+  if (coordinateSpace) {
+    out.coordinateSpace = coordinateSpace;
+  } else if (centerX !== undefined || centerY !== undefined) {
+    // Preserve absolute center semantics for MCP clients that send centerX/Y.
+    out.coordinateSpace = 'absoluteTopLeft';
+  }
 
   const color = inferLayerColor(args, out);
   if (color) {

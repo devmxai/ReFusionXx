@@ -76,6 +76,7 @@ import '../services/mcp_effect_capability_guard.dart';
 import '../services/mcp_effect_payload_lowering.dart';
 import '../services/mcp_shape_layer_resolution.dart';
 import '../services/mcp_pending_command_layer_materializer.dart';
+import '../services/mcp_coordinate_resolution.dart';
 import '../services/mcp_universal_layer_apply_planner.dart';
 import '../services/mcp_universal_layer_identity.dart';
 import '../services/manual_transition_master_frame_evaluation_adapter.dart';
@@ -4141,18 +4142,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updateProps: updateProps,
       nestedPayloadProps: nestedPayloadProps,
     );
+    final resolvedCoordinateSpace = _mcpResolvedCoordinateSpaceForPlacement(
+      coordinateSpace: coordinateSpace,
+      rawX: rawX,
+      rawY: rawY,
+      absoluteCenterX: absoluteCenterX,
+      absoluteCenterY: absoluteCenterY,
+      canvasSize: canvasSize,
+    );
     final positionX = absoluteCenterX == null
         ? _mcpCanonicalCoordinateFromRemoteValue(
             rawX,
             axisExtent: canvasSize.width,
-            coordinateSpace: coordinateSpace,
+            coordinateSpace: resolvedCoordinateSpace,
           )
         : absoluteCenterX - (canvasSize.width / 2.0);
     final positionY = absoluteCenterY == null
         ? _mcpCanonicalCoordinateFromRemoteValue(
             rawY,
             axisExtent: canvasSize.height,
-            coordinateSpace: coordinateSpace,
+            coordinateSpace: resolvedCoordinateSpace,
           )
         : absoluteCenterY - (canvasSize.height / 2.0);
     final colorArgb = _remoteColorArgb(
@@ -6078,40 +6087,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               remoteLayer['coordinateSystem'],
               remoteLayer['origin'],
             ]) ??
-            'centerOrigin')
+            'unknown')
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9]+'), '');
   }
+
+  String _mcpResolvedCoordinateSpaceForPlacement({
+    required String coordinateSpace,
+    required double? rawX,
+    required double? rawY,
+    required double? absoluteCenterX,
+    required double? absoluteCenterY,
+    required MotionSize2D canvasSize,
+  }) =>
+      McpCoordinateResolution.resolvePlacementCoordinateSpace(
+        coordinateSpace: coordinateSpace,
+        rawX: rawX,
+        rawY: rawY,
+        absoluteCenterX: absoluteCenterX,
+        absoluteCenterY: absoluteCenterY,
+        canvasSize: canvasSize,
+      );
 
   double _mcpCanonicalCoordinateFromRemoteValue(
     double? value, {
     required double axisExtent,
     required String coordinateSpace,
-  }) {
-    if (value == null) {
-      return 0.0;
-    }
-    final halfExtent = axisExtent / 2.0;
-    final space = coordinateSpace.toLowerCase();
-    if (space.contains('topleft') ||
-        space.contains('absolute') ||
-        space.contains('css') ||
-        space.contains('canvaspixel')) {
-      return value - halfExtent;
-    }
-    if (space.contains('center')) {
-      return value;
-    }
-    // Legacy MCP payloads have historically mixed absolute `x/y` with the
-    // newer center-origin canvas contract. Ambiguous values strictly inside the
-    // center-origin range are treated as canonical; boundary values are treated
-    // as absolute canvas pixels so Story center payloads like `x=540,y=960`
-    // map to canonical center instead of bottom-right edge.
-    if (value.abs() < halfExtent) {
-      return value;
-    }
-    return value - halfExtent;
-  }
+  }) =>
+      McpCoordinateResolution.canonicalCoordinateFromRemoteValue(
+        value,
+        axisExtent: axisExtent,
+        coordinateSpace: coordinateSpace,
+      );
 
   int? _remoteInt(Object? value) {
     if (value is num && value.isFinite) {
