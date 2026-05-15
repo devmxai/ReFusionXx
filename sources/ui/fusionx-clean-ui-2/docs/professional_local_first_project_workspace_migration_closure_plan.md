@@ -28,6 +28,7 @@ b2f97087 checkpoint: finalize workspace identity runtime adoption core
 0e4884e6 checkpoint: add scene context virtual project resources
 8446c992 checkpoint: prefer scene context over legacy layers sync
 9f73db64 checkpoint: enforce canonical transaction envelope at json-rpc boundary
+d1127df8 checkpoint: normalize canonical transactions in agent control plane
 ```
 
 ### What Is Closed
@@ -52,6 +53,7 @@ Proof resource payload is explicitly read-only and cannot be interpreted as app-
 Cloud bridge fast-sync now reads layer truth from `get_scene_context` first, with `get_layers` as compatibility fallback only.
 JSON-RPC `tools/call` now validates canonical transaction envelopes (`schemaVersion/baseRevision/idempotencyKey/projectId/compositionId/operations`) when provided.
 Malformed canonical transactions now fail early at JSON-RPC boundary instead of reaching runtime handlers.
+Agent control plane now normalizes canonical transaction fields into runtime command envelopes (expectedRevision/idempotency/project scope/payload) before command execution.
 ```
 
 ### What Is Not Yet Closed

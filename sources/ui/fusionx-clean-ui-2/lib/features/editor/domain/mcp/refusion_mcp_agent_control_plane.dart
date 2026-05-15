@@ -117,31 +117,45 @@ class RefusionMcpAgentControlPlane {
         message: 'Unknown tool `${request.toolName}`.',
       );
     }
+    final normalizedRequest = _normalizeRequestWithCanonicalTransaction(
+      request: request,
+      descriptor: descriptor,
+      revision: revision,
+    );
+    if (!normalizedRequest.ok) {
+      return RefusionMcpCommandResult.failure(
+        sessionId: request.sessionId,
+        revisionBefore: revision,
+        code: RefusionMcpCommandErrorCode.validationFailed,
+        message: normalizedRequest.message ?? 'Invalid transaction.',
+      );
+    }
+    final effectiveRequest = normalizedRequest.request ?? request;
     final securityResult = _securityPolicy.evaluateToolCall(
       context: RefusionMcpToolCallContext(
-        requestedToolName: request.toolName,
+        requestedToolName: effectiveRequest.toolName,
         descriptor: descriptor,
         session: session,
         currentRevision: revision,
-        mode: request.mode == RefusionMcpCommandMode.commit
+        mode: effectiveRequest.mode == RefusionMcpCommandMode.commit
             ? RefusionMcpSecurityMode.commit
             : RefusionMcpSecurityMode.dryRun,
-        payload: request.payload,
+        payload: effectiveRequest.payload,
       ),
     );
     if (securityResult != null) {
       return securityResult;
     }
     final command = RefusionMcpCommandEnvelope(
-      commandId: request.commandId,
-      sessionId: request.sessionId,
-      projectId: request.projectId,
-      type: request.toolName,
+      commandId: effectiveRequest.commandId,
+      sessionId: effectiveRequest.sessionId,
+      projectId: effectiveRequest.projectId,
+      type: effectiveRequest.toolName,
       capability: descriptor.capability,
-      mode: request.mode,
-      idempotencyKey: request.idempotencyKey,
-      expectedRevision: request.expectedRevision,
-      payload: request.payload,
+      mode: effectiveRequest.mode,
+      idempotencyKey: effectiveRequest.idempotencyKey,
+      expectedRevision: effectiveRequest.expectedRevision,
+      payload: effectiveRequest.payload,
     );
     return _commandBus.execute(
       session: session,
@@ -163,6 +177,102 @@ class RefusionMcpAgentControlPlane {
       return value.trim();
     }
     return '';
+  }
+
+  _RequestNormalization _normalizeRequestWithCanonicalTransaction({
+    required RefusionMcpToolCallRequest request,
+    required RefusionMcpToolDescriptor descriptor,
+    required int revision,
+  }) {
+    final transaction = _readPayload(request.payload['transaction']);
+    if (transaction.isEmpty) {
+      return _RequestNormalization(ok: true, request: request);
+    }
+    final validation = _validateCanonicalTransaction(transaction);
+    if (!validation.ok) {
+      return _RequestNormalization(
+        ok: false,
+        message: validation.message,
+      );
+    }
+    final transactionProjectId = _readString(transaction['projectId']);
+    final fallbackProjectId = transactionProjectId ?? request.projectId;
+    final projectId = fallbackProjectId.trim().isEmpty
+        ? request.projectId
+        : fallbackProjectId;
+    final transactionIdempotencyKey =
+        _readString(transaction['idempotencyKey']);
+    final idempotencyKey = (request.idempotencyKey.trim().isNotEmpty
+            ? request.idempotencyKey
+            : transactionIdempotencyKey) ??
+        'txn-${DateTime.now().microsecondsSinceEpoch}';
+    final transactionId = _readString(transaction['transactionId']);
+    final commandId = request.commandId.trim().isNotEmpty
+        ? request.commandId
+        : (transactionId == null ? request.commandId : 'cmd_$transactionId');
+    final expectedRevision =
+        request.expectedRevision ?? _readInt(transaction['baseRevision']);
+    final payload = <String, Object?>{
+      ...request.payload,
+      'transaction': transaction,
+      if (request.payload['baseRevision'] == null &&
+          transaction['baseRevision'] is int)
+        'baseRevision': transaction['baseRevision'],
+      if (request.payload['schemaVersion'] == null &&
+          transaction['schemaVersion'] is int)
+        'schemaVersion': transaction['schemaVersion'],
+    };
+    return _RequestNormalization(
+      ok: true,
+      request: RefusionMcpToolCallRequest(
+        toolName: request.toolName,
+        sessionId: request.sessionId,
+        projectId: projectId,
+        commandId: commandId,
+        idempotencyKey: idempotencyKey,
+        mode: request.mode,
+        expectedRevision: expectedRevision,
+        payload: payload,
+      ),
+    );
+  }
+
+  _RequestNormalization _validateCanonicalTransaction(
+    Map<String, Object?> transaction,
+  ) {
+    final schemaVersion = _readInt(transaction['schemaVersion']);
+    final baseRevision = _readInt(transaction['baseRevision']);
+    final idempotencyKey = _readString(transaction['idempotencyKey']);
+    final projectId = _readString(transaction['projectId']);
+    final compositionId = _readString(transaction['compositionId']);
+    final operations = transaction['operations'];
+    final issues = <String>[];
+    if (schemaVersion == null || schemaVersion <= 0) {
+      issues.add('transaction.schemaVersion must be a positive integer');
+    }
+    if (baseRevision == null || baseRevision < 0) {
+      issues.add('transaction.baseRevision must be >= 0');
+    }
+    if (idempotencyKey == null) {
+      issues.add('transaction.idempotencyKey is required');
+    }
+    if (projectId == null) {
+      issues.add('transaction.projectId is required');
+    }
+    if (compositionId == null) {
+      issues.add('transaction.compositionId is required');
+    }
+    if (operations is! List || operations.isEmpty) {
+      issues.add('transaction.operations must be a non-empty array');
+    }
+    if (issues.isNotEmpty) {
+      return _RequestNormalization(
+        ok: false,
+        message:
+            'Canonical transaction validation failed: ${issues.join('; ')}.',
+      );
+    }
+    return _RequestNormalization(ok: true);
   }
 
   RefusionMcpCommandResult _dryRunCommand({
@@ -217,6 +327,23 @@ class RefusionMcpAgentControlPlane {
     return const <String, Object?>{};
   }
 
+  int? _readInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.round();
+    }
+    return null;
+  }
+
+  String? _readString(Object? value) {
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+    return null;
+  }
+
   Map<String, Object?> _serializePending(RefusionMcpPendingTransaction value) {
     return <String, Object?>{
       'id': value.id,
@@ -243,4 +370,16 @@ class RefusionMcpAgentControlPlane {
       'committedAtUtc': value.committedAt.toIso8601String(),
     };
   }
+}
+
+class _RequestNormalization {
+  const _RequestNormalization({
+    required this.ok,
+    this.request,
+    this.message,
+  });
+
+  final bool ok;
+  final RefusionMcpToolCallRequest? request;
+  final String? message;
 }

@@ -341,5 +341,129 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.error?.code, RefusionMcpCommandErrorCode.capabilityDenied);
     });
+
+    test('uses canonical transaction baseRevision for commit mutation', () {
+      final bus = RefusionMcpCommandBus();
+      bus.registerHandler(
+        commandType: 'refusion.keyframe_edit',
+        handler: (_) => RefusionMcpCommandHandlingOutcome(
+          summary: 'Keyframe prepared.',
+          commitOperation: () => const RefusionMcpCommitExecution(
+            revisionAfter: 9,
+          ),
+        ),
+      );
+      final store = RefusionMcpSessionStore();
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_2',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'project_1',
+          activeCompositionId: 'composition_1',
+          timelineRevision: 8,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.motionWrite,
+            RefusionMcpCapability.timelineWrite,
+          },
+        ),
+      );
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: RefusionMcpToolRegistry(),
+        sessionStore: store,
+        revisionReader: () => 8,
+      );
+
+      final result = controlPlane.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.keyframe_edit',
+          sessionId: 'session_2',
+          projectId: 'project_1',
+          commandId: 'cmd_tx_commit',
+          idempotencyKey: 'turn-tx-commit',
+          mode: RefusionMcpCommandMode.commit,
+          payload: <String, Object?>{
+            'transaction': <String, Object?>{
+              'transactionId': 'tx-commit-1',
+              'schemaVersion': 1,
+              'baseRevision': 8,
+              'idempotencyKey': 'tx-idempotency-1',
+              'projectId': 'project_1',
+              'compositionId': 'composition_1',
+              'operations': <Map<String, Object?>>[
+                <String, Object?>{
+                  'kind': 'keyframe.edit',
+                  'payload': <String, Object?>{'property': 'position.x'},
+                },
+              ],
+            },
+          },
+        ),
+      );
+
+      expect(result.ok, isTrue);
+      expect(result.revisionAfter, 9);
+    });
+
+    test('fails malformed canonical transaction before command execution', () {
+      final bus = RefusionMcpCommandBus();
+      bus.registerHandler(
+        commandType: 'refusion.get_project_state',
+        handler: (_) => RefusionMcpCommandHandlingOutcome(
+          summary: 'Should not execute on malformed transaction.',
+        ),
+      );
+      final store = RefusionMcpSessionStore();
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_3',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'project_1',
+          activeCompositionId: 'composition_1',
+          timelineRevision: 8,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.projectRead,
+          },
+        ),
+      );
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: RefusionMcpToolRegistry(),
+        sessionStore: store,
+        revisionReader: () => 8,
+      );
+
+      final result = controlPlane.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.get_project_state',
+          sessionId: 'session_3',
+          projectId: 'project_1',
+          commandId: 'cmd_bad_tx',
+          idempotencyKey: 'turn-bad-tx',
+          mode: RefusionMcpCommandMode.dryRun,
+          payload: <String, Object?>{
+            'transaction': <String, Object?>{
+              'schemaVersion': 0,
+              'baseRevision': -1,
+              'projectId': 'project_1',
+              'compositionId': 'composition_1',
+              'operations': <Object?>[],
+            },
+          },
+        ),
+      );
+
+      expect(result.ok, isFalse);
+      expect(result.error?.code, RefusionMcpCommandErrorCode.validationFailed);
+      expect(
+        result.error?.message
+            .contains('Canonical transaction validation failed'),
+        isTrue,
+      );
+    });
   });
 }
