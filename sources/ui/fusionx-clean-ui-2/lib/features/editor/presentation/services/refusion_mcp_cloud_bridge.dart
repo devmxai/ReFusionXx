@@ -312,9 +312,11 @@ class RefusionMcpCloudBridge {
           _normalizedCompositionIdentifierOrNull(state.compositionId);
       final workspaceIdArg =
           _normalizedWorkspaceIdentifierOrNull(state.workspaceId);
-      final hasActiveComposition = projectIdArg != null &&
-          compositionIdArg != null &&
-          workspaceIdArg != null;
+      // Local-first truth: project + composition are the mandatory runtime
+      // identity. workspaceId is optional metadata and must never downgrade
+      // an active composition to inactive.
+      final hasActiveComposition =
+          projectIdArg != null && compositionIdArg != null;
       _fireAndForgetTool(
         toolName: 'touch_editor_session',
         arguments: <String, Object?>{
@@ -574,7 +576,7 @@ class RefusionMcpCloudBridge {
         softTimeout.inMilliseconds > _commandBusSoftTimeout.inMilliseconds
             ? softTimeout
             : _commandBusSoftTimeout;
-    var pendingCommandsResponse = await _safeCallTool(
+    final pendingCommandsResponse = await _safeCallTool(
       toolName: 'get_pending_commands',
       arguments: <String, Object?>{
         'projectId': projectId,
@@ -585,35 +587,9 @@ class RefusionMcpCloudBridge {
       },
       softTimeout: commandBusTimeout,
     );
-    var pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
-      pendingCommandsResponse,
-    );
-    final scopedCommands = _pendingCommandList(pendingCommandsResponse);
-    if (pendingCommandTargetLayerIds.isNotEmpty ||
-        scopedCommands.isNotEmpty ||
-        liveSessionId == null) {
-      return pendingCommandsResponse;
-    }
-    final unscopedPendingCommandsResponse = await _safeCallTool(
-      toolName: 'get_pending_commands',
-      arguments: <String, Object?>{
-        'projectId': projectId,
-        'compositionId': compositionId,
-        'markReceived': true,
-        'limit': 40,
-      },
-      softTimeout: commandBusTimeout,
-    );
-    final unscopedPendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
-      unscopedPendingCommandsResponse,
-    );
-    final unscopedCommands =
-        _pendingCommandList(unscopedPendingCommandsResponse);
-    if (unscopedPendingCommandTargetLayerIds.isEmpty &&
-        unscopedCommands.isEmpty) {
-      return pendingCommandsResponse;
-    }
-    return unscopedPendingCommandsResponse;
+    // Strict local-first routing: do not fall back to unscoped fetch. Commands
+    // must remain bound to the active editor session identity.
+    return pendingCommandsResponse;
   }
 
   List<Map<String, Object?>> _pendingCommandList(
@@ -1187,9 +1163,8 @@ class RefusionMcpCloudBridge {
         _normalizedCompositionIdentifierOrNull(state.compositionId);
     final workspaceIdArg =
         _normalizedWorkspaceIdentifierOrNull(state.workspaceId);
-    final hasActiveComposition = projectIdArg != null &&
-        compositionIdArg != null &&
-        workspaceIdArg != null;
+    final hasActiveComposition =
+        projectIdArg != null && compositionIdArg != null;
     final response = await _callTool(
       toolName: 'generate_pairing_code',
       arguments: <String, Object?>{

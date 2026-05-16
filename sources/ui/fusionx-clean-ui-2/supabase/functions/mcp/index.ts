@@ -575,26 +575,42 @@ async function getActiveContext(context: RequestContext, args: JsonMap) {
   let compositionId = stringValue(session?.composition_id);
 
   if (session?.id && (!projectId || !compositionId)) {
-    return {
-      hasProject: false,
-      project: null,
-      composition: null,
-      timeline: {
-        id: session?.timeline_id ?? 'main',
-        playheadMs: session?.playhead_ms ?? 0,
-      },
-      liveEditor: {
-        online: isSessionOnline(session),
-        sessionId: session?.id ?? null,
-        deviceId: session?.device_id ?? null,
-        foreground: session?.foreground ?? false,
-        lastSeenAt: session?.last_seen_at ?? null,
-      },
-      auth: {
-        source: context.authSource,
-        viaAgentSession: false,
-      },
-    };
+    const recovered = await recoverActiveCompositionIdentity(
+      context.userId,
+      stringValue(session?.device_id),
+    );
+    if (recovered) {
+      projectId = recovered.projectId;
+      compositionId = recovered.compositionId;
+      await admin.from('refusion_editor_sessions').update({
+        project_id: projectId,
+        composition_id: compositionId,
+        timeline_revision: recovered.timelineRevision ??
+          await projectRevision(projectId),
+        updated_at: new Date().toISOString(),
+      }).eq('id', stringValue(session.id));
+    } else {
+      return {
+        hasProject: false,
+        project: null,
+        composition: null,
+        timeline: {
+          id: session?.timeline_id ?? 'main',
+          playheadMs: session?.playhead_ms ?? 0,
+        },
+        liveEditor: {
+          online: isSessionOnline(session),
+          sessionId: session?.id ?? null,
+          deviceId: session?.device_id ?? null,
+          foreground: session?.foreground ?? false,
+          lastSeenAt: session?.last_seen_at ?? null,
+        },
+        auth: {
+          source: context.authSource,
+          viaAgentSession: false,
+        },
+      };
+    }
   }
 
   if (!projectId) {
@@ -669,6 +685,63 @@ async function getActiveContext(context: RequestContext, args: JsonMap) {
       source: context.authSource,
       viaAgentSession: false,
     },
+  };
+}
+
+async function recoverActiveCompositionIdentity(
+  userId: string,
+  deviceId: string,
+): Promise<{ projectId: string; compositionId: string; timelineRevision: number | null } | null> {
+  const resolvedDeviceId = deviceId.trim();
+  if (resolvedDeviceId.length > 0) {
+    const { data: deviceRow, error: deviceError } = await admin
+      .from('refusion_devices')
+      .select('id')
+      .eq('owner_id', userId)
+      .eq('device_id', resolvedDeviceId)
+      .maybeSingle();
+    if (deviceError) throw deviceError;
+    if (deviceRow?.id) {
+      const { data: scopedContext, error: scopedContextError } = await admin
+        .from('refusion_active_contexts')
+        .select('project_id, composition_id, timeline_revision')
+        .eq('owner_id', userId)
+        .eq('device_ref', deviceRow.id)
+        .eq('status', 'active')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (scopedContextError) throw scopedContextError;
+      const scopedProjectId = stringValue(scopedContext?.project_id);
+      const scopedCompositionId = stringValue(scopedContext?.composition_id);
+      if (scopedProjectId && scopedCompositionId) {
+        return {
+          projectId: scopedProjectId,
+          compositionId: scopedCompositionId,
+          timelineRevision: optionalNumber(scopedContext?.timeline_revision),
+        };
+      }
+    }
+  }
+
+  const { data: fallbackContext, error: fallbackContextError } = await admin
+    .from('refusion_active_contexts')
+    .select('project_id, composition_id, timeline_revision')
+    .eq('owner_id', userId)
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (fallbackContextError) throw fallbackContextError;
+  const fallbackProjectId = stringValue(fallbackContext?.project_id);
+  const fallbackCompositionId = stringValue(fallbackContext?.composition_id);
+  if (!fallbackProjectId || !fallbackCompositionId) {
+    return null;
+  }
+  return {
+    projectId: fallbackProjectId,
+    compositionId: fallbackCompositionId,
+    timelineRevision: optionalNumber(fallbackContext?.timeline_revision),
   };
 }
 

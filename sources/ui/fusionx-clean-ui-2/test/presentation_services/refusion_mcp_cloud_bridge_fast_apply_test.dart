@@ -195,7 +195,7 @@ void main() {
     );
 
     test(
-      'fast sync falls back to unscoped pending commands when scoped response is empty',
+      'fast sync does not fall back to unscoped pending commands',
       () async {
         final server = await _FakeMcpServer.start(
           diagnosticsDelay: const Duration(milliseconds: 20),
@@ -223,13 +223,9 @@ void main() {
 
         await bridge.syncNow();
 
-        expect(
-            server.callCount('get_pending_commands'), greaterThanOrEqualTo(2));
+        expect(server.callCount('get_pending_commands'), 1);
         expect(snapshots, isNotEmpty);
-        expect(snapshots.first.pendingCommands, isNotEmpty);
-        final commandPayload = snapshots.first.pendingCommands.single['payload']
-            as Map<String, Object?>;
-        expect(commandPayload['kind'], 'text');
+        expect(snapshots.first.pendingCommands, isEmpty);
       },
     );
 
@@ -382,7 +378,7 @@ void main() {
     );
 
     test(
-      'project/composition without workspaceId fail closed as inactive context',
+      'project/composition without workspaceId remains active context',
       () async {
         final server = await _FakeMcpServer.start(
           diagnosticsDelay: const Duration(milliseconds: 20),
@@ -409,9 +405,9 @@ void main() {
 
         final touchArgs = server.lastArgs('touch_editor_session');
         final contextArgs = server.lastArgs('set_active_context');
-        expect(touchArgs?['hasActiveComposition'], isFalse);
-        expect(contextArgs?['hasActiveComposition'], isFalse);
-        expect(server.callCount('sync_editor_layers'), 0);
+        expect(touchArgs?['hasActiveComposition'], isTrue);
+        expect(contextArgs?['hasActiveComposition'], isTrue);
+        expect(server.callCount('sync_editor_layers'), 1);
       },
     );
 
