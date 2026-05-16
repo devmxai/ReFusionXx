@@ -130,5 +130,71 @@ void main() {
       expect(remoteLayers, hasLength(1));
       expect(remoteLayers.single['id'], 'solid-layer-1');
     });
+
+    test('materializes update_layer commands for same-layer local apply', () {
+      const materializer = McpPendingCommandLayerMaterializer();
+
+      final remoteLayers = materializer.materialize(
+        const <Map<String, Object?>>[
+          <String, Object?>{
+            'id': 'command-update-1',
+            'status': 'running',
+            'command_type': 'refusion.update_layer',
+            'payload': <String, Object?>{
+              'targetLayerId': 'text-layer-1',
+              'layerKind': 'text',
+              'operation': 'update_text',
+              'payload': <String, Object?>{
+                'text': 'HELLO UPDATED',
+              },
+            },
+          },
+        ],
+      );
+
+      expect(remoteLayers, hasLength(1));
+      final remoteLayer = remoteLayers.single;
+      expect(remoteLayer['id'], 'text-layer-1');
+      final payload = remoteLayer['payload'] as Map<String, Object?>;
+      expect(payload['operation'], 'update_text');
+      expect(payload['layerId'], 'text-layer-1');
+      expect(payload['text'], 'HELLO UPDATED');
+      expect(payload['mcpCommandId'], 'command-update-1');
+    });
+
+    test('materializes apply_motion_patch commands for legacy animation apply',
+        () {
+      const materializer = McpPendingCommandLayerMaterializer();
+
+      final remoteLayers = materializer.materialize(
+        const <Map<String, Object?>>[
+          <String, Object?>{
+            'id': 'command-motion-1',
+            'status': 'pending',
+            'command_type': 'refusion.apply_motion_patch',
+            'payload': <String, Object?>{
+              'targetLayerId': 'text-layer-2',
+              'layerKind': 'text',
+              'payload': <String, Object?>{
+                'motion': <String, Object?>{
+                  'in': <String, Object?>{
+                    'preset': 'popUp',
+                  },
+                },
+              },
+            },
+          },
+        ],
+      );
+
+      expect(remoteLayers, hasLength(1));
+      final remoteLayer = remoteLayers.single;
+      expect(remoteLayer['id'], 'text-layer-2');
+      final payload = remoteLayer['payload'] as Map<String, Object?>;
+      expect(payload['operation'], 'apply_motion_patch');
+      final motion = payload['motion'] as Map<String, Object?>;
+      final motionIn = motion['in'] as Map<String, Object?>;
+      expect(motionIn['preset'], 'popUp');
+    });
   });
 }

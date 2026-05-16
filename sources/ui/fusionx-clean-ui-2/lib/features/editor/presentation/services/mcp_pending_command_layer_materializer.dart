@@ -35,7 +35,8 @@ class McpPendingCommandLayerMaterializer {
             _text(command['type']) ??
             '')
         .toLowerCase();
-    if (!_isLayerInsertCommand(commandType)) {
+    final commandCategory = _commandCategory(commandType);
+    if (commandCategory == _McpCommandCategory.unsupported) {
       return null;
     }
 
@@ -90,7 +91,7 @@ class McpPendingCommandLayerMaterializer {
             nestedPayload['operation'],
             commandPayload['operation'],
           ]) ??
-          'insert_layer',
+          _defaultOperationForCategory(commandCategory),
       'layerId': layerId,
       'remoteLayerId': layerId,
       'layerKind': layerKind,
@@ -130,10 +131,38 @@ class McpPendingCommandLayerMaterializer {
     };
   }
 
-  bool _isLayerInsertCommand(String commandType) {
-    return commandType == 'refusion.insert_layer' ||
+  _McpCommandCategory _commandCategory(String commandType) {
+    if (commandType == 'refusion.insert_layer' ||
         commandType.endsWith('.insert_layer') ||
-        commandType == 'insert_layer';
+        commandType == 'insert_layer') {
+      return _McpCommandCategory.insert;
+    }
+    if (commandType == 'refusion.update_layer' ||
+        commandType.endsWith('.update_layer') ||
+        commandType == 'update_layer' ||
+        commandType == 'refusion.set_text_style' ||
+        commandType.endsWith('.set_text_style') ||
+        commandType == 'set_text_style') {
+      return _McpCommandCategory.update;
+    }
+    if (commandType == 'refusion.apply_motion_patch' ||
+        commandType.endsWith('.apply_motion_patch') ||
+        commandType == 'apply_motion_patch' ||
+        commandType == 'refusion.apply_animation_recipe' ||
+        commandType.endsWith('.apply_animation_recipe') ||
+        commandType == 'apply_animation_recipe') {
+      return _McpCommandCategory.motion;
+    }
+    return _McpCommandCategory.unsupported;
+  }
+
+  String _defaultOperationForCategory(_McpCommandCategory category) {
+    return switch (category) {
+      _McpCommandCategory.insert => 'insert_layer',
+      _McpCommandCategory.update => 'update_layer',
+      _McpCommandCategory.motion => 'apply_motion_patch',
+      _McpCommandCategory.unsupported => 'insert_layer',
+    };
   }
 
   String _normalizeLayerKind(String? value) {
@@ -202,4 +231,11 @@ class McpPendingCommandLayerMaterializer {
     }
     return fallback;
   }
+}
+
+enum _McpCommandCategory {
+  unsupported,
+  insert,
+  update,
+  motion,
 }

@@ -192,7 +192,7 @@ class RefusionMcpCloudBridge {
   final Duration interval;
   final Duration connectTimeout;
   static const Duration _fastApplySoftTimeout = Duration(milliseconds: 1500);
-  static const Duration _commandBusSoftTimeout = Duration(seconds: 7);
+  static const Duration _commandBusSoftTimeout = Duration(milliseconds: 2500);
   static const Duration _diagnosticsSoftTimeout = Duration(milliseconds: 1800);
 
   Timer? _timer;
@@ -387,6 +387,8 @@ class RefusionMcpCloudBridge {
             liveSessionId: liveSessionId,
             softTimeout: _fastApplySoftTimeout,
           );
+          final hasPendingCommands =
+              _pendingCommandList(pendingCommandsResponse).isNotEmpty;
           final pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
             pendingCommandsResponse,
           );
@@ -396,21 +398,23 @@ class RefusionMcpCloudBridge {
             if (pendingCommandTargetLayerIds.isNotEmpty)
               'layerIds': pendingCommandTargetLayerIds,
           };
-          final sceneContextResponse = await _safeCallTool(
-            toolName: 'get_scene_context',
-            arguments: layerReadArgs,
-            allowAgentSessionToken: true,
-            softTimeout: _fastApplySoftTimeout,
-          );
-          layersResponse =
-              _layersToolResultFromSceneContext(sceneContextResponse);
+          if (!hasPendingCommands) {
+            final sceneContextResponse = await _safeCallTool(
+              toolName: 'get_scene_context',
+              arguments: layerReadArgs,
+              allowAgentSessionToken: true,
+              softTimeout: _fastApplySoftTimeout,
+            );
+            layersResponse =
+                _layersToolResultFromSceneContext(sceneContextResponse);
+          }
           final motionChannelsFuture = _safeCallTool(
             toolName: 'get_motion_channels',
             arguments: layerReadArgs,
             allowAgentSessionToken: true,
             softTimeout: _fastApplySoftTimeout,
           );
-          if (layersResponse == null) {
+          if (!hasPendingCommands && layersResponse == null) {
             layersResponse = await _safeCallTool(
               toolName: 'get_layers',
               arguments: layerReadArgs,
@@ -476,6 +480,8 @@ class RefusionMcpCloudBridge {
         liveSessionId: liveSessionId,
         softTimeout: _fastApplySoftTimeout,
       );
+      final hasPendingCommands =
+          _pendingCommandList(pendingCommandsResponse).isNotEmpty;
       final pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
         pendingCommandsResponse,
       );
@@ -485,22 +491,25 @@ class RefusionMcpCloudBridge {
         if (pendingCommandTargetLayerIds.isNotEmpty)
           'layerIds': pendingCommandTargetLayerIds,
       };
-      final sceneContextResponse = await _safeCallTool(
-        toolName: 'get_scene_context',
-        arguments: layerReadArgs,
-        allowAgentSessionToken: true,
-        softTimeout: _fastApplySoftTimeout,
-      );
-      var layersResponse = _layersToolResultFromSceneContext(
-        sceneContextResponse,
-      );
+      Map<String, Object?>? layersResponse;
+      if (!hasPendingCommands) {
+        final sceneContextResponse = await _safeCallTool(
+          toolName: 'get_scene_context',
+          arguments: layerReadArgs,
+          allowAgentSessionToken: true,
+          softTimeout: _fastApplySoftTimeout,
+        );
+        layersResponse = _layersToolResultFromSceneContext(
+          sceneContextResponse,
+        );
+      }
       final motionChannelsFuture = _safeCallTool(
         toolName: 'get_motion_channels',
         arguments: layerReadArgs,
         allowAgentSessionToken: true,
         softTimeout: _fastApplySoftTimeout,
       );
-      if (layersResponse == null) {
+      if (!hasPendingCommands && layersResponse == null) {
         layersResponse = await _safeCallTool(
           toolName: 'get_layers',
           arguments: layerReadArgs,
